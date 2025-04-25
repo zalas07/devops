@@ -472,6 +472,49 @@ net.ipv4.tcp_syncookies=1
         echo -e "${green}[✓] Parameter jaringan berhasil diatur.${nc}"
     else
         echo -e "${red}[X] Gagal mengatur parameter jaringan. Cek konfigurasi.${nc}"
+    fisysctl_conf="/etc/sysctl.conf"
+    backup_file="/etc/sysctl.conf.bak.$(date +%s)"
+    sudo cp "$sysctl_conf" "$backup_file"
+    echo -e "${blue}[~] Backup sysctl.conf disimpan di $backup_file${nc}"
+
+    param_list=$(cat <<EOF
+net.ipv4.conf.all.accept_source_route=0
+net.ipv4.conf.default.accept_source_route=0
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.default.log_martians=1
+net.ipv4.icmp_echo_ignore_broadcasts=1
+net.ipv4.icmp_ignore_bogus_error_responses=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.tcp_syncookies=1
+EOF
+)
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" != *"="* ]] && continue
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        key="$(echo "$key" | xargs)"
+        value="$(echo "$value" | xargs)"
+
+        if grep -qE "^$key\s*=" "$sysctl_conf"; then
+            sudo sed -i "s|^$key\s*=.*|$key = $value|" "$sysctl_conf"
+        else
+            echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
+        fi
+    done <<< "$param_list"
+
+    echo -e "${blue}[~] Meng-apply parameter sysctl...${nc}"
+    if sudo sysctl -p > /dev/null 2>&1; then
+        echo -e "${green}[✓] Parameter jaringan berhasil diatur.${nc}"
+    else
+        echo -e "${red}[X] Gagal mengatur parameter jaringan. Cek konfigurasi.${nc}"
     fi
 }
 
