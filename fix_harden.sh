@@ -425,45 +425,245 @@ echo -e "${green} Parameter Keamanan Jaringan berhasil di terapkan .${nc}"
 
 }
 
-network_parameter_host_router(){
-log "$blue" "========================================================="
-log "$yellow" "[*] Mengatur parameter jaringan untuk Host dan Router...${nc}"
+network_parameters_router_host() {
+    echo -e "${yellow}[*] Mengatur parameter jaringan untuk host dan router...${nc}"
 
-sysctl_conf="/etc/sysctl.conf"
+    sysctl_conf="/etc/sysctl.conf"
+    backup_file="/etc/sysctl.conf.bak.$(date +%s)"
+    sudo cp "$sysctl_conf" "$backup_file"
+    echo -e "${blue}[~] Backup sysctl.conf disimpan di $backup_file${nc}"
 
-param_list="
-    net.ipv4.conf.all.accept_source_route=0
-    net.ipv4.conf.default.accept_source_route=0
-    net.ipv4.conf.all.accept_redirects=0
-    net.ipv4.conf.default.accept_redirects=0
-    net.ipv4.conf.all.secure_redirects=0
-    net.ipv4.conf.default.secure_redirects=0
-    net.ipv4.conf.all.log_martians=1
-    net.ipv4.conf.default.log_martians=1
-    net.ipv4.icmp_echo_ignore_broadcasts=1
-    net.ipv4.icmp_ignore_bogus_error_responses=1
-    net.ipv4.conf.all.rp_filter=1
-    net.ipv4.conf.default.rp_filter=1
-    net.ipv4.tcp_syncookies=1
+    param_list="
+net.ipv4.conf.all.accept_source_route=0
+net.ipv4.conf.default.accept_source_route=0
+net.ipv4.conf.all.accept_redirects=0
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.default.log_martians=1
+net.ipv4.icmp_echo_ignore_broadcasts=1
+net.ipv4.icmp_ignore_bogus_error_responses=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.tcp_syncookies=1
 "
-    while IFS= read -r line; do
-       key="${line%%=*}"
-       value="${line#*=}"
 
-     if grep -q "^$key" "$sysctl_conf"; then
-         sudo sed -i "s|^$key.*|$key = $value|" "$sysctl_conf"
-     else
-         echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
-     fi
+    while IFS= read -r line; do
+        # Lewati baris kosong atau yang gak ada tanda =
+        [[ -z "$line" || "$line" != *"="* ]] && continue
+
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        # Trim spasi
+        key="$(echo "$key" | xargs)"
+        value="$(echo "$value" | xargs)"
+
+        if grep -qE "^$key\s*=" "$sysctl_conf"; then
+            sudo sed -i "s|^$key\s*=.*|$key = $value|" "$sysctl_conf"
+        else
+            echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
+        fi
     done <<< "$param_list"
 
-
     echo -e "${blue}[~] Meng-apply parameter sysctl...${nc}"
-    sudo sysctl -p > /dev/null 2>&1 && \
-    echo -e "${green} Parameter jaringan berhasil di atur.${nc}" || \
-    echo -e "${red} Gagal mengatur parameter jaringan.${nc}"
+    if sudo sysctl -p > /dev/null 2>&1; then
+        echo -e "${green}[✓] Parameter jaringan berhasil diatur.${nc}"
+    else
+        echo -e "${red}[X] Gagal mengatur parameter jaringan. Cek konfigurasi.${nc}"
+    fi
+}
 
+audit() {
+    echo -e "${yellow}[*] Mengecek apakah auditd sudah terinstal...${nc}"
 
+    # Cek apakah auditd sudah terinstal
+    if ! command -v auditctl &> /dev/null; then
+        echo -e "${yellow}[~] Menginstall auditd...${nc}"
+        sudo apt install -y auditd &
+    else
+        echo -e "${green}[✓] Auditd sudah terinstal.${nc}"
+    fi
+
+    # Cek apakah rsyslog sudah terinstal
+    echo -e "${yellow}[*] Mengecek apakah rsyslog sudah terinstal...${nc}"
+    if ! command -v rsyslogd &> /dev/null; then
+        echo -e "${yellow}[~] Menginstall rsyslog...${nc}"
+        sudo apt install -y rsyslog &
+    else
+        echo -e "${green}[✓] Rsyslog sudah terinstal.${nc}"
+    fi
+
+    # Tunggu hingga kedua instalasi selesai
+    wait
+
+    # Cek dan setel konfigurasi auditd jika belum terkonfigurasi
+    echo -e "${yellow}[*] Memeriksa dan mengonfigurasi auditd...${nc}"
+
+    # Menambahkan konfigurasi untuk file /etc/audit/auditd.conf
+    if ! grep -q "log_file" /etc/audit/auditd.conf; then
+        echo -e "${yellow}[~] Mengonfigurasi auditd log storage...${nc}"
+        echo "log_file = /var/log/audit/audit.log" | sudo tee -a /etc/audit/auditd.conf > /dev/null
+    fi
+
+    # Set agar log tidak otomatis dihapus
+    if ! grep -q "max_log_file_action" /etc/audit/auditd.conf; then
+        echo -e "${yellow}[~] Mengonfigurasi auditd untuk tidak menghapus log otomatis...${nc}"
+        echo "max_log_file_action = keep_logs" | sudo tee -a /etc/audit/auditd.conf > /dev/null
+    fi
+
+    # Aktifkan auditd service
+    echo -e "${yellow}[*] Mengaktifkan service auditd...${nc}"
+    sudo systemctl enable auditd
+    sudo systemctl start auditd
+
+    # Cek dan setel aturan auditd untuk event
+    echo -e "${yellow}[*] Memeriksa dan mengonfigurasi audit rules...${nc}"
+    if ! grep -q "time-change" /etc/audit/audit.rules; then
+        echo -e "${yellow}[~] Menambahkan rule untuk time-change...${nc}"
+        echo "-w /etc/localtime -p wa -k time-change" | sudo tee -a /etc/audit/audit.rules > /dev/null
+    fi
+
+    if ! grep -q "login" /etc/audit/rules.d/50-logins.rules; then
+        echo -e "${yellow}[~] Menambahkan rule untuk login events...${nc}"
+        echo "-w /var/log/wtmp -p wa -k logins" | sudo tee -a /etc/audit/rules.d/50-logins.rules > /dev/null
+    fi
+
+    if ! grep -q "session" /etc/audit/rules.d/50-session.rules; then
+        echo -e "${yellow}[~] Menambahkan rule untuk session events...${nc}"
+        echo "-w /var/run/utmp -p wa -k session" | sudo tee -a /etc/audit/rules.d/50-session.rules > /dev/null
+    fi
+
+    if ! grep -q "delete" /etc/audit/rules.d/50-delete.rules; then
+        echo -e "${yellow}[~] Menambahkan rule untuk delete events...${nc}"
+        echo "-w /var/log/audit/ -p wa -k delete" | sudo tee -a /etc/audit/rules.d/50-delete.rules > /dev/null
+    fi
+
+    if ! grep -q "sudo" /etc/audit/rules.d/50-scope.rules; then
+        echo -e "${yellow}[~] Menambahkan rule untuk sudo events...${nc}"
+        echo "-w /etc/sudoers -p wa -k scope" | sudo tee -a /etc/audit/rules.d/50-scope.rules > /dev/null
+    fi
+
+    # Aktifkan rsyslog service
+    echo -e "${yellow}[*] Mengaktifkan service rsyslog...${nc}"
+    sudo systemctl enable rsyslog
+    sudo systemctl start rsyslog
+
+    # Cek apakah rsyslog mengirim log ke remote server
+    if ! grep -q "remote" /etc/rsyslog.conf; then
+        echo -e "${yellow}[~] Mengonfigurasi rsyslog untuk mengirim log ke remote server...${nc}"
+        echo "*.* @@172.12.12.12:514" | sudo tee -a /etc/rsyslog.conf > /dev/null
+    fi
+
+    # Restart service untuk menerapkan perubahan
+    sudo systemctl restart rsyslog
+
+    echo -e "${green}[✓] Auditd dan Rsyslog berhasil dikonfigurasi.${nc}"
+}
+
+configure_ssh() {
+    echo -e "${yellow}[*] Mengecek apakah SSH server sudah terinstal...${nc}"
+
+    # Cek apakah SSH sudah terinstal
+    if ! command -v sshd &> /dev/null; then
+        echo -e "${yellow}[~] Menginstall OpenSSH Server...${nc}"
+        sudo apt install -y openssh-server
+    else
+        echo -e "${green}[✓] OpenSSH Server sudah terinstal.${nc}"
+    fi
+
+    # Memastikan SSH berjalan
+    echo -e "${yellow}[*] Memastikan service SSH berjalan...${nc}"
+    sudo systemctl enable ssh
+    sudo systemctl start ssh
+
+    # Membuka file konfigurasi sshd_config
+    echo -e "${yellow}[*] Membuka dan mengedit /etc/ssh/sshd_config untuk hardening SSH...${nc}"
+
+    # Menonaktifkan login root
+    sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+
+    # Menonaktifkan password authentication (gunakan key-based login)
+    sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+    # Mengubah port SSH (optional)
+    # sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config  # jika ingin ganti port
+
+    # Mengaktifkan log yang lebih ketat
+    sudo sed -i 's/^#LogLevel INFO/LogLevel VERBOSE/' /etc/ssh/sshd_config
+
+    # Menambahkan konfigurasi untuk mencegah brute-force attacks
+    sudo sed -i 's/^#MaxAuthTries 6/MaxAuthTries 4/' /etc/ssh/sshd_config
+    sudo sed -i 's/^#MaxSessions 10/MaxSessions 5/' /etc/ssh/sshd_config
+
+    # Konfigurasi tambahan sesuai dengan kebijakan:
+    # Set Permissions pada /etc/ssh/sshd_config
+    sudo chmod 600 /etc/ssh/sshd_config
+
+    # Set SSH Protocol ke 2
+    sudo sed -i 's/^#Protocol.*/Protocol 2/' /etc/ssh/sshd_config
+
+    # Set LogLevel ke INFO
+    sudo sed -i 's/^#LogLevel.*/LogLevel INFO/' /etc/ssh/sshd_config
+
+    # Set X11Forwarding ke no
+    sudo sed -i 's/^#X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config
+
+    # Set MaxAuthTries ke 4
+    sudo sed -i 's/^#MaxAuthTries.*/MaxAuthTries 4/' /etc/ssh/sshd_config
+
+    # Set ignoreRhosts ke yes
+    sudo sed -i 's/^#IgnoreRhosts.*/IgnoreRhosts yes/' /etc/ssh/sshd_config
+
+    # Set HostBasedAuthentication ke no
+    sudo sed -i 's/^#HostBasedAuthentication.*/HostBasedAuthentication no/' /etc/ssh/sshd_config
+
+    # Set permitEmptyPasswords ke no
+    sudo sed -i 's/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config
+
+    # Set permituserEnvirontment ke no
+    sudo sed -i 's/^#PermitUserEnvironment.*/PermitUserEnvironment no/' /etc/ssh/sshd_config
+
+    # Set algoritma MAC yang disetujui hanya sha2-512 dan sha2-256
+    sudo sed -i '/^#MACs/c\MACs hmac-sha2-512,hmac-sha2-256' /etc/ssh/sshd_config
+
+    # Set idle timeout interval ke 300 detik
+    sudo sed -i 's/^#ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
+    sudo sed -i 's/^#ClientAliveCountMax.*/ClientAliveCountMax 0/' /etc/ssh/sshd_config
+
+    # Set login grace time ke 60 detik
+    sudo sed -i 's/^#LoginGraceTime.*/LoginGraceTime 60/' /etc/ssh/sshd_config
+
+    # Restart SSH untuk menerapkan perubahan
+    sudo systemctl restart ssh
+
+    echo -e "${green}[✓] SSH Server berhasil dikonfigurasi sesuai dengan kebijakan keamanan.${nc}"
+}
+
+# Fungsi untuk konfigurasi user account dan environment
+user_account_env() {
+    echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
+
+    # Mengatur expiration password
+    echo "PASS_MAX_DAYS 90" >> /etc/login.defs
+    echo "PASS_MIN_DAYS 7" >> /etc/login.defs
+    echo "PASS_WARN_AGE 7" >> /etc/login.defs
+    echo "INACTIVE 30" >> /etc/login.defs
+
+    # Mengatur umask default di /etc/bashrc dan /etc/profile
+    if ! grep -q "umask 027" /etc/bashrc; then
+        echo "umask 027" >> /etc/bashrc
+    fi
+    if ! grep -q "umask 027" /etc/profile; then
+        echo "umask 027" >> /etc/profile
+    fi
+
+    # Mengatur shell timeout menjadi 600 detik
+    echo "TMOUT=600" >> /etc/profile
+
+    # Mengecek konfigurasi yang telah diterapkan
+    echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
 
 main() {
@@ -505,7 +705,14 @@ sleep 2
 network_parameters
 sleep 2
 
-network_parameter_host_router
+network_parameters_host_router
+sleep 2
+
+audit
+sleep 2
+configure_ssh
+sleep 2
+user_account_env
 sleep 2
 }
 
