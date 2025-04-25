@@ -18,6 +18,7 @@ echo -e "${color}${message}${nc}"
 baseline_check() {
 log "$blue" "==============================================="
 log "$red" "performing baseline configuration check..."
+sleep 1
 
 # 1. OS Check
 log "$blue" "==============================================="
@@ -30,18 +31,22 @@ echo "Release     : $(lsb_release -r | cut -f2)"
 echo "Codename    : $(lsb_release -c | cut -f2)"
 echo ""
 
+sleep 2
+
 # 2. System File Type
 log "$blue" "==============================================="
 log "$yellow" "Checking System File....."
 log "File System (df -T):"
 df -T | grep -v tmpfs
 echo ""
+sleep 2
 
 # 3. Display all directory in /var:"
 log "$blue" "==============================================="
 log "$yellow" "Directory listing under /var:"
 ls -l /var | grep "^d"
 echo ""
+sleep 2
 
 # 4. Home Directory Display
 log "$blue" "==============================================="
@@ -50,6 +55,7 @@ ls -l /home | grep "^d"
 echo ""
 
 }
+sleep 2
 
 install_aide(){
 
@@ -282,24 +288,62 @@ log "$yellow" "[*] Menjalankan Special Purpose Services...${nc}"
 
 #1. Konfigurasi & Aktivasi NTP
 echo -e "${yellow}[*] Mengecek dan mengonfigurasi NTP...${nc}"
-if ! command -v ntpq &>/dev/null; then
-    sudo apt-get install ntp -y > /dev/null 2>&1
+
+if command -v timedatectl &> /dev/null; then
+   echo -e "${blue}[i] Menggunakan systemd-timesyncd (timedatectl)...${nc}"
+
+   #Aktifkan service jika belum aktif
+    sudo systemctl unmask systemd-timesyncd.service
+    sudo systemctl enable systemd-timesyncd.service --now
+
+   #tambahkan konfigurasi custom ke /etc/systemd/timesyncd.conf
+   if grep -q "^#*NTP=" /etc/systemd/timesyncd.conf; then
+      sudo sed -i 's|^#*NTP=.*|NTP=172.18.104.166|' /etc/systemd/timesyncd.conf
+   else
+      echo "NTP=172.18.104.166" | sudo tee -a /etc/systemd/timesyncd.conf > /dev/null
+   fi
+
+   sudo systemctl restart systemd-timesyncd.service
+   echo -e "${green} NTP dikonfigurasi menggunakan systemd-timesyncd.${nc}"
+   timedatectl status | grep "NTP synchronized"
+
+else
+   echo -e "${blue}[i] Menggunakan paket NTP biasa (ubuntu lawas)...${nc}"
+
+   if ! dpkg -l | grep -qw ntp; then
+       sudo apt-get install ntp -y
+   fi
+
+   if grep -q "^server" /etc/ntp.conf; then
+       sudo sed -i '/^server /d' /etc/ntp.conf
+   fi
+   echo "Server 172.18.104.166" | sudo tee -a /etc/ntp.conf > /dev/null
+   sudo systemctl restart ntp
+   sleep 2
+
+   echo -e "${yellow}[~]Mengecek Koneksi ke NTP Server...${nc}"
+   if command -v ntpq &>/dev/null; then
+        output=$(ntpq -p | grep "172.18.104.166")
+        if [[ -n "$output" ]]; then
+             echo -e "${green} NTP terkoneksi ke server 172.18.104.166:${nc}\n$output"
+        else
+             echo -e "${red} NTP tidak dapat terkoneksi ke server  172.18.104.166.${nc}"
+        fi
+    else
+       echo -e "${red} Perintah NTP tidak tersedia ${nc}"
+  fi
+
 fi
 
-if [-f /etc/ntp.conf ]; then
-   grep -q "server 172.18.104.166" /etc/ntp.conf || echo "server 172.18.104.166" | sudo tee -a /etc/ntp.conf > /dev/null
-   sudo systemctl enable ntp > /dev/null 2>&1
-   sudo systemctl restart ntp > /dev/null 2>&1
-   ntpq -p
-   echo -e "${green} NTP Aktif dan sudah terkonfigurasi.${nc}"
-
-fi
 
 #2. Konfigurasi Postfix hanya untuk lokal
-echo -e "${yellow}[*] Mengecek dan mengonfigurasi Postfic...${nc}"
+echo -e "${yellow}[*] Mengecek dan mengonfigurasi Postfix...${nc}"
 if ! dpkg -l | grep -qw postfix; then
-    sudo apt-get install postfix -y > /dev/null 2>&1
+    echo -e "${yellow}[~] Menginstall Postfix, Silahkan Pilih 'Local Only' saat diminta.${nc}"
+    sudo DEBIAN_PRIORITY=high apt-get install postfix
+    sudo apt-get install postfix
 fi
+
 if [ -f /etc/postfix/main.cf ]; then
    sudo sed -i 's/^inet_interface = .*/inet_interface = loopback_only/' /etc/postfix/main.cf
    sudo systemctl restart postfix > /dev/null 2>&1
@@ -350,7 +394,77 @@ echo -e "${green} Module Purpose Special service selesai ${nc}"
 
 }
 
+network_parameters() {
+log "$blue" "=============================================="
+log "$yellow" "[*] Menetapkan Parameter kemanan jaringan di directory /etc/sysctl.conf...${nc}"
 
+#daftar parameter yang ingin di set
+
+declare -A params=(
+    ["net.ipv4.ip_forward"]="0"
+    ["net.ipv4.conf.all.send_redirects"]="0"
+    ["net.ipv4.conf.default.send_redirects"]="0"
+)
+
+for param in "${!params[@]}"; do
+    value="${params[$param]}"
+    if grep -q "^$param" /etc/sysctl.conf; then
+       #ubah nilai jika sudah ada
+       sudo sed -i "$|^$param.*|$param = $value|" /etc/sysctl.conf
+    else
+       #tambahkan jika belum ada
+       echo "$param = $value" | sudo tee -a /etc/sysctl.conf > /dev/null
+    fi
+done
+
+#terapkan perubahan
+
+sudo sysctl -p > /dev/null
+
+echo -e "${green} Parameter Keamanan Jaringan berhasil di terapkan .${nc}"
+
+}
+
+network_parameter_host_router(){
+log "$blue" "========================================================="
+log "$yellow" "[*] Mengatur parameter jaringan untuk Host dan Router...${nc}"
+
+sysctl_conf="/etc/sysctl.conf"
+
+param_list="
+    net.ipv4.conf.all.accept_source_route=0
+    net.ipv4.conf.default.accept_source_route=0
+    net.ipv4.conf.all.accept_redirects=0
+    net.ipv4.conf.default.accept_redirects=0
+    net.ipv4.conf.all.secure_redirects=0
+    net.ipv4.conf.default.secure_redirects=0
+    net.ipv4.conf.all.log_martians=1
+    net.ipv4.conf.default.log_martians=1
+    net.ipv4.icmp_echo_ignore_broadcasts=1
+    net.ipv4.icmp_ignore_bogus_error_responses=1
+    net.ipv4.conf.all.rp_filter=1
+    net.ipv4.conf.default.rp_filter=1
+    net.ipv4.tcp_syncookies=1
+"
+    while IFS= read -r line; do
+       key="${line%%=*}"
+       value="${line#*=}"
+
+     if grep -q "^$key" "$sysctl_conf"; then
+         sudo sed -i "s|^$key.*|$key = $value|" "$sysctl_conf"
+     else
+         echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
+     fi
+    done <<< "$param_list"
+
+
+    echo -e "${blue}[~] Meng-apply parameter sysctl...${nc}"
+    sudo sysctl -p > /dev/null 2>&1 && \
+    echo -e "${green} Parameter jaringan berhasil di atur.${nc}" || \
+    echo -e "${red} Gagal mengatur parameter jaringan.${nc}"
+
+
+}
 
 main() {
 echo -e "${green}"
@@ -379,10 +493,19 @@ sleep 2
 setup_cron_aide
 sleep 2
 
-apply_process_harden
-sleep 2
+#apply_process_harden
+#sleep 2
 
 disable_service
+sleep 2
+
+special_purpose_service
+sleep 2
+
+network_parameters
+sleep 2
+
+network_parameter_host_router
 sleep 2
 }
 
