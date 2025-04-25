@@ -666,6 +666,44 @@ user_account_env() {
     echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
 
+add_wazuh_audit_rules() {
+    echo -e "${yellow}[*] Menambahkan aturan audit untuk Wazuh...${nc}"
+
+    # Lokasi file audit rules
+    RULES_FILE="/etc/audit/rules.d/audit.rules"
+
+    # Daftar aturan yang ingin ditambahkan
+    RULES=(
+        "-a always,exit -F arch=b64 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c"
+        "-a always,exit -F arch=b32 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c"
+    )
+
+    # Mengecek apakah file audit rules ada
+    if [[ ! -f "$RULES_FILE" ]]; then
+        echo -e "${red}[X] File $RULES_FILE tidak ditemukan!${nc}"
+        return 1
+    fi
+
+    # Menambahkan aturan-aturan yang diperlukan
+    for rule in "${RULES[@]}"; do
+        if ! grep -q "$rule" "$RULES_FILE"; then
+            echo "$rule" | sudo tee -a "$RULES_FILE" > /dev/null
+            echo -e "${green}[✓] Aturan '$rule' berhasil ditambahkan ke $RULES_FILE${nc}"
+        else
+            echo -e "${yellow}[~] Aturan '$rule' sudah ada di $RULES_FILE${nc}"
+        fi
+    done
+
+    # Memuat ulang aturan audit
+    sudo augenrules --load
+    if [[ $? -eq 0 ]]; then
+        echo -e "${green}[✓] Aturan audit berhasil diterapkan dan di-reload.${nc}"
+    else
+        echo -e "${red}[X] Gagal memuat ulang aturan audit.${nc}"
+    fi
+}
+
+
 main() {
 echo -e "${green}"
 
