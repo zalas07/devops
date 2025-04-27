@@ -58,58 +58,85 @@ echo ""
 sleep 2
 
 install_aide(){
-
-log "$blue" "============================================="
-log "$yellow" "Mengecek apakah paket AIDE sudah terinstall atau belum......"
-if ! dpkg  -s aide >/dev/null 2>&1; then
-
-  log "$red" "Paket AIDE belum terpasang"
-
-  log "$yellow" "Memulai instalasi...."
-  sudo apt install aide -y >/dev/null 2>&1
-
-  if [ $? -eq 0 ]; then 
-      log "$green" "AIDE Berhasil diInstall!"
-  else
-      log "$red" "Aide Gagal diInstall periksa koneksi dan repositori!"
-      return 1
-  fi
-
-else
-
-log "$green" "AIDE sudah terpasang"
-log "$blue" "Versi Aide:"
-aide --version | head -n 1
-
-fi
-
+    log "$blue" "============================================="
+    log "$yellow" "Mengecek apakah paket AIDE sudah terinstall atau belum......"
+    
+    if ! dpkg -s aide >/dev/null 2>&1; then
+        log "$red" "Paket AIDE belum terpasang"
+        
+        log "$yellow" "Memulai instalasi...."
+        
+        # Menggunakan apt-get dengan non-interaktif
+        sudo DEBIAN_FRONTEND=noninteractive apt install aide -y
+        
+        if [ $? -eq 0 ]; then 
+            log "$green" "AIDE Berhasil diInstall!"
+            
+            # Menunggu input dari user untuk konfigurasi AIDE
+            log "$yellow" "Memulai konfigurasi AIDE..."
+            
+            # Meminta user untuk memasukkan lokasi instalasi dan domain/email
+            echo -n "Masukkan lokasi instalasi AIDE (misalnya /usr/local/aide): "
+            read install_location
+            echo -n "Masukkan domain atau email: "
+            read domain_or_email
+            
+            log "$yellow" "Proses konfigurasi untuk AIDE dengan lokasi $install_location dan domain/email $domain_or_email"
+            
+            # Edit konfigurasi AIDE setelah instalasi (file aide.conf)
+            sudo sed -i "s|^database=file:/var/lib/aide/aide.db|database=file:$install_location/aide.db|" /etc/aide/aide.conf
+            sudo sed -i "s|^report_url=|report_url=$domain_or_email|" /etc/aide/aide.conf
+            
+            # Inisialisasi AIDE setelah konfigurasi
+            sudo aide --init
+            
+            log "$green" "Konfigurasi AIDE berhasil dilakukan!"
+            
+        else
+            log "$red" "AIDE Gagal diInstall. Periksa koneksi dan repositori!"
+            return 1
+        fi
+    else
+        log "$green" "AIDE sudah terpasang"
+        log "$blue" "Versi AIDE:"
+        aide --version | head -n 1
+    fi
 }
+
 setup_cron_aide(){
 
-log "$yellow" "Mengecek Cron Job AIDE di sudo Crontab......"
+    log "$yellow" "Mengecek Cron Job AIDE di sudo Crontab......"
 
-#pembuatan file aide.log
-if [ ! -d  /var/log/aide ]; then
-    sudo mkdir -p /var/log/aide
-    sudo chown root:root /var/log/aide
-    sudo chmod 750 /var/log/aide
-else
-    log "$blue" "Directory Aide sudah Ada."
+    # Pembuatan file aide.log jika belum ada
+    if [ ! -d /var/log/aide ]; then
+        sudo mkdir -p /var/log/aide
+        sudo chown root:root /var/log/aide
+        sudo chmod 750 /var/log/aide
+    else
+        log "$blue" "Directory Aide sudah Ada."
+    fi
 
-fi
-sleep 2
+    # Membuat file log jika belum ada
+    if [ ! -f /var/log/aide/aide.log ]; then
+        sudo touch /var/log/aide/aide.log
+        sudo chown root:root /var/log/aide/aide.log
+        sudo chmod 640 /var/log/aide/aide.log
+    else
+        log "$blue" "File Log AIDE sudah ada."
+    fi
 
-cron_line= " 0 4 * * *  /usr/bin/aide --check > /var/log/aide/aide.log 2>&1"
-if sudo crontab -l 2>/dev/null | grep -q "aide --check"; then
-   log "$green" "Cron Job AIDE sudah ada!"
+    sleep 2
 
-else
-   log "$blue" "Menambahkan Cron Job AIDE..."
-   (sudo crontab -l 2>/dev/null; echo "$cron_line") | sudo crontab  -
-   log "$green" "Cron Job AIDE berhasil di tambahkan!"
+    cron_line="0 4 * * * /usr/bin/aide --check > /var/log/aide/aide.log 2>&1"
+    if sudo crontab -l 2>/dev/null | grep -q "aide --check"; then
+        log "$green" "Cron Job AIDE sudah ada!"
+    else
+        log "$blue" "Menambahkan Cron Job AIDE..."
+        (sudo crontab -l 2>/dev/null; echo "$cron_line") | sudo crontab -
+        log "$green" "Cron Job AIDE berhasil di tambahkan!"
+    fi
 
-fi
-sleep 2
+    sleep 2
 }
 
 apply_process_harden(){
@@ -179,60 +206,41 @@ else
 fi
 sleep 2
 
-#cek dan install apparmor
-log "$blue" "=========================================================="
-log "$yellow" "melakukan instalasi apparmor pada system...."
-echo -e "${yellow}[*] Mengecek apakah Apparmor sudah terinstall...${nc}"
-if ! command -v apparmor_status &> /dev/null; then
-   echo -ne "{$yellow}[~] Apparmor belum terinstall. Menginstall Apparmor..."
+install_apparmor() {
+    echo "[*] Updating repository..."
+    sudo apt update -y > /dev/null 2>&1
 
-  # sudo apt-get update -qq > /dev/null
-   sudo apt-get install apparmor apparmor-utils -y > /dev/null 2>&1 &
-   pid=$!
+    echo "[*] Installing AppArmor and related packages..."
+    sudo apt install -y apparmor apparmor-utils apparmor-profiles > /dev/null 2>&1
 
-   spin='-\|/'
-   i=0
+    echo "[*] Checking AppArmor version..."
+    if ! apparmor_status > /dev/null 2>&1; then
+        echo "[!] AppArmor status check failed. Exiting."
+        exit 1
+    fi
 
-#loop maksimal 120 detik (timeout), sambil ngecek apakah apparmor sudah ada dan tersedia
-   for _ in {1..120}; do
-      if command -v apparmor_status &> /dev/null; then
-         echo -e "\r${green} Apparmor Berhasil diinstall.${nc} "
+    echo "[*] Updating parser.conf with write_cache and show_cache options..."
+    if [ -f /etc/apparmor/parser.conf ]; then
+        grep -qxF 'write_cache' /etc/apparmor/parser.conf || echo 'write_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
+        grep -qxF 'show_cache' /etc/apparmor/parser.conf || echo 'show_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
+    else
+        echo "[!] parser.conf not found. Skipping."
+    fi
 
-         break
-      fi
-      if ! kill -0 $pid 2>/dev/null; then
-        echo -e "\r${red} Gagal menginstall Apparmor. cek koneksi dan repository.${nc}"
-        break
+    echo "[*] Reloading all AppArmor profiles..."
+    sudo apparmor_parser -r /etc/apparmor.d/* > /dev/null 2>&1
 
-      fi
-      i=$(( (i+1) %4 ))
-      printf "\r${yellow}[~] Menginstall Apparmor...${spin:$i:1}"
-     sleep 0.5
-   done
+    echo "[*] Setting all profiles to enforce mode..."
+    sudo aa-enforce /etc/apparmor.d/* > /dev/null 2>&1
 
-else
-    echo -e "${green} Apparmor sudah terinstall.${nc}"
-fi
-sleep 2
+    echo "[*] Enabling and restarting AppArmor service..."
+    sudo systemctl enable apparmor > /dev/null 2>&1
+    sudo systemctl restart apparmor > /dev/null 2>&1
 
-# Aktifkan semua profile Enforce
-echo -e "${yellow}[*] Menjalankan Enforce pada semua profile Apparmor...${nc}"
-sudo aa-enforce /etc/apparmor.d > /dev/null 2>&1
-echo -e "${green} Semua Profile Apparmor di set ke enforce mode.${nc}"
-sleep 2
+    echo "[*] Verifying AppArmor service status..."
+    sudo systemctl is-active --quiet apparmor && echo "[+] AppArmor service is active!" || echo "[!] AppArmor service is not active."
 
-#tambahkan konfigurasi parser.conf
-parser_conf="/etc/apparmor/parser.conf"
-echo -e "${yellow}[*] Mengecek dan memperbaharui $parser_conf...${nc}"
-
-if [ -f "$parser_conf" ]; then
-    grep -qxF "write-cache" "$parser_conf" || echo  "write-cache" |  sudo tee -a  "$parser_conf" > /dev/null
-    grep -qxF "show-cache" "$parser_conf" || echo "show-cache" | sudo tee -a "$parser_conf" > /dev/null
-    echo -e "${green} File parser.conf berhasil di perbaharui.${nc}"
-else
-    echo -e "${red}[!] file $parser.conf tidak ditemukan. lewati update parser.conf.${nc}"
-fi
-sleep 2
+    echo "[+] AppArmor installation and configuration completed successfully!"
 }
 
 
@@ -395,128 +403,81 @@ echo -e "${green} Module Purpose Special service selesai ${nc}"
 }
 
 network_parameters() {
-log "$blue" "=============================================="
-log "$yellow" "[*] Menetapkan Parameter kemanan jaringan di directory /etc/sysctl.conf...${nc}"
+    log "$blue" "=============================================="
+    log "$yellow" "[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
-#daftar parameter yang ingin di set
+    # Daftar parameter yang ingin di set
+    declare -A params=(
+        ["net.ipv4.ip_forward"]="0"
+        ["net.ipv4.conf.all.send_redirects"]="0"
+        ["net.ipv4.conf.default.send_redirects"]="0"
+    )
 
-declare -A params=(
-    ["net.ipv4.ip_forward"]="0"
-    ["net.ipv4.conf.all.send_redirects"]="0"
-    ["net.ipv4.conf.default.send_redirects"]="0"
-)
+    for param in "${!params[@]}"; do
+        value="${params[$param]}"
+        if grep -q "^$param" /etc/sysctl.conf; then
+            current_value=$(grep "^$param" /etc/sysctl.conf | awk '{print $3}')
+            if [[ "$current_value" == "$value" ]]; then
+                echo -e "${green}[✓] $param sudah terset dengan nilai $value.${nc}"
+            else
+                sudo sed -i "s|^$param.*|$param = $value|" /etc/sysctl.conf
+                echo -e "${yellow}[!] $param ditemukan, nilai diperbarui menjadi $value.${nc}"
+            fi
+        else
+            echo "$param = $value" | sudo tee -a /etc/sysctl.conf > /dev/null
+            echo -e "${cyan}[+] $param belum ada, ditambahkan dengan nilai $value.${nc}"
+        fi
+    done
 
-for param in "${!params[@]}"; do
-    value="${params[$param]}"
-    if grep -q "^$param" /etc/sysctl.conf; then
-       #ubah nilai jika sudah ada
-       sudo sed -i "$|^$param.*|$param = $value|" /etc/sysctl.conf
-    else
-       #tambahkan jika belum ada
-       echo "$param = $value" | sudo tee -a /etc/sysctl.conf > /dev/null
-    fi
-done
-
-#terapkan perubahan
-
-sudo sysctl -p > /dev/null
-
-echo -e "${green} Parameter Keamanan Jaringan berhasil di terapkan .${nc}"
-
+    # Terapkan perubahan
+    sudo sysctl -p > /dev/null
+    echo -e "${green}[✓] Parameter Keamanan Jaringan berhasil diterapkan.${nc}"
 }
 
-network_parameters_router_host() {
-    echo -e "${yellow}[*] Mengatur parameter jaringan untuk host dan router...${nc}"
+network_parameters_host() {
+    echo "[*] Starting network parameter hardening..."
 
-    sysctl_conf="/etc/sysctl.conf"
-    backup_file="/etc/sysctl.conf.bak.$(date +%s)"
-    sudo cp "$sysctl_conf" "$backup_file"
-    echo -e "${blue}[~] Backup sysctl.conf disimpan di $backup_file${nc}"
+    # Define parameters and their desired values
+    declare -A sysctl_settings=(
+        ["net.ipv4.conf.all.accept_source_route"]="0"
+        ["net.ipv4.conf.default.accept_source_route"]="0"
+        ["net.ipv4.conf.all.accept_redirects"]="0"
+        ["net.ipv4.conf.default.accept_redirects"]="0"
+        ["net.ipv4.conf.all.secure_redirects"]="0"
+        ["net.ipv4.conf.default.secure_redirects"]="0"
+        ["net.ipv4.conf.all.log_martians"]="1"
+        ["net.ipv4.conf.default.log_martians"]="1"
+        ["net.ipv4.icmp_echo_ignore_broadcasts"]="1"
+        ["net.ipv4.icmp_ignore_bogus_error_responses"]="1"
+        ["net.ipv4.conf.all.rp_filter"]="1"
+        ["net.ipv4.conf.default.rp_filter"]="1"
+        ["net.ipv4.tcp_syncookies"]="1"
+    )
 
-    param_list="
-net.ipv4.conf.all.accept_source_route=0
-net.ipv4.conf.default.accept_source_route=0
-net.ipv4.conf.all.accept_redirects=0
-net.ipv4.conf.default.accept_redirects=0
-net.ipv4.conf.all.secure_redirects=0
-net.ipv4.conf.default.secure_redirects=0
-net.ipv4.conf.all.log_martians=1
-net.ipv4.conf.default.log_martians=1
-net.ipv4.icmp_echo_ignore_broadcasts=1
-net.ipv4.icmp_ignore_bogus_error_responses=1
-net.ipv4.conf.all.rp_filter=1
-net.ipv4.conf.default.rp_filter=1
-net.ipv4.tcp_syncookies=1
-"
+    # Backup sysctl.conf
+    cp /etc/sysctl.conf /etc/sysctl.conf.bak
 
-    while IFS= read -r line; do
-        # Lewati baris kosong atau yang gak ada tanda =
-        [[ -z "$line" || "$line" != *"="* ]] && continue
+    for key in "${!sysctl_settings[@]}"; do
+        value="${sysctl_settings[$key]}"
 
-        key="${line%%=*}"
-        value="${line#*=}"
-
-        # Trim spasi
-        key="$(echo "$key" | xargs)"
-        value="$(echo "$value" | xargs)"
-
-        if grep -qE "^$key\s*=" "$sysctl_conf"; then
-            sudo sed -i "s|^$key\s*=.*|$key = $value|" "$sysctl_conf"
+        # Check if key exists
+        if grep -q "^$key" /etc/sysctl.conf; then
+            # Update existing line
+            sed -i "s|^$key.*|$key = $value|" /etc/sysctl.conf
+            echo "[+] Updated $key to $value"
         else
-            echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
+            # Append new line
+            echo "$key = $value" >> /etc/sysctl.conf
+            echo "[+] Added $key = $value"
         fi
-    done <<< "$param_list"
+    done
 
-    echo -e "${blue}[~] Meng-apply parameter sysctl...${nc}"
-    if sudo sysctl -p > /dev/null 2>&1; then
-        echo -e "${green}[✓] Parameter jaringan berhasil diatur.${nc}"
-    else
-        echo -e "${red}[X] Gagal mengatur parameter jaringan. Cek konfigurasi.${nc}"
-    fisysctl_conf="/etc/sysctl.conf"
-    backup_file="/etc/sysctl.conf.bak.$(date +%s)"
-    sudo cp "$sysctl_conf" "$backup_file"
-    echo -e "${blue}[~] Backup sysctl.conf disimpan di $backup_file${nc}"
+    # Apply the changes
+    sysctl -p
 
-    param_list=$(cat <<EOF
-net.ipv4.conf.all.accept_source_route=0
-net.ipv4.conf.default.accept_source_route=0
-net.ipv4.conf.all.accept_redirects=0
-net.ipv4.conf.default.accept_redirects=0
-net.ipv4.conf.all.secure_redirects=0
-net.ipv4.conf.default.secure_redirects=0
-net.ipv4.conf.all.log_martians=1
-net.ipv4.conf.default.log_martians=1
-net.ipv4.icmp_echo_ignore_broadcasts=1
-net.ipv4.icmp_ignore_bogus_error_responses=1
-net.ipv4.conf.all.rp_filter=1
-net.ipv4.conf.default.rp_filter=1
-net.ipv4.tcp_syncookies=1
-EOF
-)
-
-    while IFS= read -r line; do
-        [[ -z "$line" || "$line" != *"="* ]] && continue
-
-        key="${line%%=*}"
-        value="${line#*=}"
-
-        key="$(echo "$key" | xargs)"
-        value="$(echo "$value" | xargs)"
-
-        if grep -qE "^$key\s*=" "$sysctl_conf"; then
-            sudo sed -i "s|^$key\s*=.*|$key = $value|" "$sysctl_conf"
-        else
-            echo "$key = $value" | sudo tee -a "$sysctl_conf" > /dev/null
-        fi
-    done <<< "$param_list"
-
-    echo -e "${blue}[~] Meng-apply parameter sysctl...${nc}"
-    if sudo sysctl -p > /dev/null 2>&1; then
-        echo -e "${green}[✓] Parameter jaringan berhasil diatur.${nc}"
-    else
-        echo -e "${red}[X] Gagal mengatur parameter jaringan. Cek konfigurasi.${nc}"
-    fi
+    echo "[*] Network parameters hardening completed."
 }
+
 
 audit() {
     echo -e "${yellow}[*] Mengecek apakah auditd sudah terinstal...${nc}"
