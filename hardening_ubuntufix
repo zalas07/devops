@@ -583,83 +583,58 @@ EOF
 }
 
 
-configure_ssh() {
-    echo -e "${yellow}[*] Mengecek apakah SSH server sudah terinstal...${nc}"
+ssh_config() {
+    echo "🛠️  Starting SSH configuration hardening..."
 
-    # Cek apakah SSH sudah terinstal
-    if ! command -v sshd &> /dev/null; then
-        echo -e "${yellow}[~] Menginstall OpenSSH Server...${nc}"
-        sudo apt install -y openssh-server
-    else
-        echo -e "${green}[✓] OpenSSH Server sudah terinstal.${nc}"
+    SSH_CONFIG="/etc/ssh/sshd_config"
+
+    # Backup dulu sebelum ubah
+    if [ ! -f "${SSH_CONFIG}.bak" ]; then
+        cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
+        echo "✅ Backup created: ${SSH_CONFIG}.bak"
     fi
 
-    # Memastikan SSH berjalan
-    echo -e "${yellow}[*] Memastikan service SSH berjalan...${nc}"
-    sudo systemctl enable ssh
-    sudo systemctl start ssh
+    # Pastikan permission 600
+    chmod 600 "$SSH_CONFIG"
+    echo "✅ Set permissions 600 on $SSH_CONFIG"
 
-    # Membuka file konfigurasi sshd_config
-    echo -e "${yellow}[*] Membuka dan mengedit /etc/ssh/sshd_config untuk hardening SSH...${nc}"
+    # Update atau tambahkan konfigurasi
+    update_or_append() {
+        local key="$1"
+        local value="$2"
+        if grep -qE "^\s*${key}\s+" "$SSH_CONFIG"; then
+            sed -i "s|^\s*${key}\s\+.*|${key} ${value}|g" "$SSH_CONFIG"
+        else
+            echo "${key} ${value}" >> "$SSH_CONFIG"
+        fi
+    }
 
-    # Menonaktifkan login root
-    sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    update_or_append "Protocol" "2"
+    update_or_append "LogLevel" "INFO"
+    update_or_append "X11Forwarding" "no"
+    update_or_append "MaxAuthTries" "4"
+    update_or_append "IgnoreRhosts" "yes"
+    update_or_append "HostbasedAuthentication" "no"
+    update_or_append "PermitRootLogin" "no"
+    update_or_append "PermitEmptyPasswords" "no"
+    update_or_append "PermitUserEnvironment" "no"
+    update_or_append "MACs" "hmac-sha2-512,hmac-sha2-256"
+    update_or_append "ClientAliveInterval" "300"
+    update_or_append "ClientAliveCountMax" "0"
+    update_or_append "LoginGraceTime" "60"
 
-    # Menonaktifkan password authentication (gunakan key-based login)
-    sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    echo "✅ SSH baseline configuration applied."
 
-    # Mengubah port SSH (optional)
-    # sudo sed -i 's/^#Port 22/Port 2222/' /etc/ssh/sshd_config  # jika ingin ganti port
-
-    # Mengaktifkan log yang lebih ketat
-    sudo sed -i 's/^#LogLevel INFO/LogLevel VERBOSE/' /etc/ssh/sshd_config
-
-    # Menambahkan konfigurasi untuk mencegah brute-force attacks
-    sudo sed -i 's/^#MaxAuthTries 6/MaxAuthTries 4/' /etc/ssh/sshd_config
-    sudo sed -i 's/^#MaxSessions 10/MaxSessions 5/' /etc/ssh/sshd_config
-
-    # Konfigurasi tambahan sesuai dengan kebijakan:
-    # Set Permissions pada /etc/ssh/sshd_config
-    sudo chmod 600 /etc/ssh/sshd_config
-
-    # Set SSH Protocol ke 2
-    sudo sed -i 's/^#Protocol.*/Protocol 2/' /etc/ssh/sshd_config
-
-    # Set LogLevel ke INFO
-    sudo sed -i 's/^#LogLevel.*/LogLevel INFO/' /etc/ssh/sshd_config
-
-    # Set X11Forwarding ke no
-    sudo sed -i 's/^#X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config
-
-    # Set MaxAuthTries ke 4
-    sudo sed -i 's/^#MaxAuthTries.*/MaxAuthTries 4/' /etc/ssh/sshd_config
-
-    # Set ignoreRhosts ke yes
-    sudo sed -i 's/^#IgnoreRhosts.*/IgnoreRhosts yes/' /etc/ssh/sshd_config
-
-    # Set HostBasedAuthentication ke no
-    sudo sed -i 's/^#HostBasedAuthentication.*/HostBasedAuthentication no/' /etc/ssh/sshd_config
-
-    # Set permitEmptyPasswords ke no
-    sudo sed -i 's/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config
-
-    # Set permituserEnvirontment ke no
-    sudo sed -i 's/^#PermitUserEnvironment.*/PermitUserEnvironment no/' /etc/ssh/sshd_config
-
-    # Set algoritma MAC yang disetujui hanya sha2-512 dan sha2-256
-    sudo sed -i '/^#MACs/c\MACs hmac-sha2-512,hmac-sha2-256' /etc/ssh/sshd_config
-
-    # Set idle timeout interval ke 300 detik
-    sudo sed -i 's/^#ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
-    sudo sed -i 's/^#ClientAliveCountMax.*/ClientAliveCountMax 0/' /etc/ssh/sshd_config
-
-    # Set login grace time ke 60 detik
-    sudo sed -i 's/^#LoginGraceTime.*/LoginGraceTime 60/' /etc/ssh/sshd_config
-
-    # Restart SSH untuk menerapkan perubahan
-    sudo systemctl restart ssh
-
-    echo -e "${green}[✓] SSH Server berhasil dikonfigurasi sesuai dengan kebijakan keamanan.${nc}"
+    # Restart SSH service agar perubahan berlaku
+    if systemctl is-active --quiet sshd; then
+        systemctl restart sshd
+        echo "✅ SSH service restarted."
+    elif systemctl is-active --quiet ssh; then
+        systemctl restart ssh
+        echo "✅ SSH service restarted."
+    else
+        echo "⚠️  SSH service not found or not active."
+    fi
 }
 
 audit_wazuh_agent() {
@@ -805,7 +780,7 @@ sleep 2
 audit
 sleep 2
 
-configure_ssh
+ssh_config
 sleep 2
 
 audit_wazuh_agent
