@@ -7,6 +7,15 @@ red='\033[0;31m'
 blue='\033[0;34m'
 nc='\033[0m'
 
+log() {
+
+color=$1
+message=$2
+echo -e "${color}${message}${nc}"
+
+}
+
+
 baseline_check() {
     echo -e "\033[1;34m===============================================\033[0m"
     echo -e "\033[1;31mPerforming baseline configuration check...\033[0m"
