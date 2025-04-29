@@ -69,42 +69,36 @@ baseline_check() {
     echo ""
     sleep 2
 }
-install_aide() {
-    echo -e "\033[1;34m=============================================\033[0m"
-    echo -e "\033[1;33mMengecek apakah paket AIDE sudah terinstall atau belum......\033[0m"
+audit_aide() {
+    echo -e "${yellow}[*] Memeriksa dan mengatur AIDE...${nc}"
 
-    if ! dpkg -s aide >/dev/null 2>&1; then
-        echo -e "\033[1;31mPaket AIDE belum terpasang\033[0m"
-        echo -e "\033[1;33mMemulai instalasi....\033[0m"
-
-        # Gunakan apt-get untuk Ubuntu lama
-        sudo DEBIAN_FRONTEND=noninteractive apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install aide -y
-
-        if [ $? -eq 0 ]; then 
-            echo -e "\033[1;32mAIDE berhasil diinstall!\033[0m"
-
-            echo -e "\033[1;33mMelakukan inisialisasi AIDE...\033[0m"
-            sudo aideinit
-
-            # Salin hasil inisialisasi ke database default
-            if [ -f /var/lib/aide/aide.db.new ]; then
-                sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-            elif [ -f /var/lib/aide/aide.db.new.gz ]; then
-                sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
-            fi
-
-            echo -e "\033[1;32mAIDE siap digunakan. Anda bisa mulai scan integritas dengan:\033[0m"
-            echo -e "\033[1;36msudo aide --check\033[0m"
-        else
-            echo -e "\033[1;31mAIDE gagal diinstall. Periksa koneksi internet atau repo!\033[0m"
-            return 1
-        fi
+    if ! command -v aide >/dev/null 2>&1; then
+        echo -e "${blue}[~] AIDE belum terinstal, menginstal...${nc}"
+        sudo apt-get update
+        sudo apt-get install -y aide
     else
-        echo -e "\033[1;32mAIDE sudah terpasang\033[0m"
-        echo -e "\033[1;34mVersi AIDE:\033[0m"
-        aide --version | head -n 1
+        echo -e "${green}[✓] AIDE sudah terinstal.${nc}"
     fi
+
+    # Pastikan direktori database ada
+    if [ ! -d /var/lib/aide ]; then
+        echo -e "${blue}[~] Membuat direktori database AIDE...${nc}"
+        sudo mkdir -p /var/lib/aide
+    fi
+
+    # Cek apakah database sudah ada
+    if [ ! -f /var/lib/aide/aide.db.gz ]; then
+        echo -e "${yellow}[~] Database AIDE belum ada. Melakukan inisialisasi...${nc}"
+        sudo aideinit
+        sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+        echo -e "${green}[✓] Database AIDE berhasil diinisialisasi dan disalin.${nc}"
+    else
+        echo -e "${green}[✓] Database AIDE sudah ada. Melewati inisialisasi.${nc}"
+    fi
+
+    # Jalankan pengecekan integritas
+    echo -e "${yellow}[*] Menjalankan pengecekan integritas AIDE...${nc}"
+    sudo aide --check
 }
 
 setup_cron_aide() {
