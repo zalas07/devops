@@ -7,15 +7,6 @@ red='\033[0;31m'
 blue='\033[0;34m'
 nc='\033[0m'
 
-
-log() {
-
-color=$1
-message=$2
-echo -e "${color}${message}${nc}"
-
-}
-
 baseline_check() {
     echo -e "\033[1;34m===============================================\033[0m"
     echo -e "\033[1;31mPerforming baseline configuration check...\033[0m"
@@ -69,7 +60,8 @@ baseline_check() {
     echo ""
     sleep 2
 }
-audit_aide() {
+install_aide() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Memeriksa dan mengatur AIDE...${nc}"
 
     if ! command -v aide >/dev/null 2>&1; then
@@ -102,6 +94,7 @@ audit_aide() {
 }
 
 setup_cron_aide() {
+echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "Mengecek dan Menambahkan Cron Job AIDE..."
 
     # Buat direktori log AIDE jika belum ada
@@ -142,7 +135,7 @@ setup_cron_aide() {
 apply_process_harden() {
     local sysctl_conf="/etc/sysctl.conf"
 
-    log "$blue" "================================================="
+    echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "Menambahkan parameter dumpable dan kernel randomize..."
 
     # Tambahkan atau update fs.suid_dumpable
@@ -192,6 +185,7 @@ are subject to having all of their activities on this system monitored and recor
 }
 
 install_apparmor() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Memperbarui repository..."
     sudo apt-get update -y > /dev/null 2>&1
 
@@ -237,7 +231,7 @@ install_apparmor() {
 }
 
 disable_service() {
-    log "$blue" "================================================="
+   echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menonaktifkan Service legacy yang tidak dibutuhkan..."
 
     services=(
@@ -291,7 +285,7 @@ disable_service() {
 }
 
 special_purpose_service() {
-log "$blue" "===================================================="
+echo -e "\033[1;34m===============================================\033[0m"
 log "$yellow" "[*] Menjalankan Special Purpose Services...${nc}"
 
 # 1. Konfigurasi & Aktivasi NTP
@@ -379,7 +373,7 @@ echo -e "${green} Module Purpose Special service selesai.${nc}"
 }
 
 network_parameters() {
-    log "$blue" "=============================================="
+   echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
     # Daftar parameter yang ingin di set
@@ -416,6 +410,7 @@ network_parameters() {
 }
 
 network_parameters_host() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Starting network parameter hardening..."
 
     # Backup dulu file sysctl.conf
@@ -460,6 +455,7 @@ network_parameters_host() {
 }
 
 audit() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Memulai konfigurasi auditd dan rsyslog...${nc}"
 
     # Install auditd dan rsyslog di background
@@ -561,6 +557,7 @@ EOF
 }
 
 ssh_config() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo "🛠️  Starting SSH configuration hardening..."
 
     SSH_CONFIG="/etc/ssh/sshd_config"
@@ -612,6 +609,7 @@ ssh_config() {
 }
 
 audit_wazuh_agent() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Menambahkan audit rules untuk Wazuh Agent...${nc}"
 
     rules_dir="/etc/audit/rules.d"
@@ -652,6 +650,7 @@ EOF
 }
 
 set_timeout() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Memeriksa dan menambahkan konfigurasi timeout...${nc}"
 
     # Cek dan tambahkan konfigurasi timeout pada /etc/bash.bashrc
@@ -680,6 +679,7 @@ set_timeout() {
 
 # Fungsi untuk konfigurasi user account dan environment
 user_account_env() {
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
     # Mengatur expiration password di /etc/login.defs
@@ -726,7 +726,7 @@ __________         __         .__         _____                                 
  |____|    (____  /__|  \___  >___|  / \____|__  (____  /___|  (____  /\___  / \___  >__|_|  /\___  >___|  /__|  
                 \/          \/     \/          \/     \/     \/     \//_____/      \/      \/     \/     \/      
 Ubuntu Security Hardening Script
-Compatible: Ubuntu 16.04 - 24.xx
+Compatible: Ubuntu 10.04 - 14.xx
 
 EOF
 echo -e "${nc}"
@@ -772,9 +772,10 @@ set_timeout
 sleep 2
 
 user_account_env
-sleep 2
+sleep 4
 
  # Pesan akhir
+echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${green}[*] Server berhasil terhardening dan konfigurasi selesai.${nc}"
     echo -e "${green}[✓] Semua langkah telah berhasil diterapkan.${nc}"
     echo -e "${green}[✓] Server siap untuk operasional dengan konfigurasi yang aman.${nc}"
