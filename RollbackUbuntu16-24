@@ -1,0 +1,88 @@
+#!/bin/bash
+
+
+green='\033[0;32m'
+yellow='\033[1;33m'
+red='\033[0;31m'
+blue='\033[0;34m'
+nc='\033[0m'
+
+
+log() {
+
+color=$1
+message=$2
+echo -e "${color}${message}${nc}"
+
+}
+
+
+
+main() {
+echo -e "${green}"
+
+cat << "EOF"
+
+__________         __         .__         _____                                                             __   
+\______   \_____ _/  |_  ____ |  |__     /     \ _____    ____ _____     ____   ____   _____   ____   _____/  |_ 
+ |     ___/\__  \\   __\/ ___\|  |  \   /  \ /  \\__  \  /    \\__  \   / ___\_/ __ \ /     \_/ __ \ /    \   __\
+ |    |     / __ \|  | \  \___|   Y  \ /    Y    \/ __ \|   |  \/ __ \_/ /_/  >  ___/|  Y Y  \  ___/|   |  \  |  
+ |____|    (____  /__|  \___  >___|  / \____|__  (____  /___|  (____  /\___  / \___  >__|_|  /\___  >___|  /__|  
+                \/          \/     \/          \/     \/     \/     \//_____/      \/      \/     \/     \/      
+Ubuntu Security Hardening Script
+Compatible: Ubuntu 16.04 - 24.xx
+
+EOF
+echo -e "${nc}"
+sleep 2
+
+baseline_check
+sleep 2
+
+install_aide
+sleep 2
+
+setup_cron_aide
+sleep 2
+
+apply_process_harden
+sleep 2
+
+install_apparmor
+sleep 2
+
+disable_service
+sleep 2
+
+special_purpose_service
+sleep 2
+
+network_parameters
+sleep 2
+
+network_parameters_host
+sleep 2
+
+audit
+sleep 2
+
+ssh_config
+sleep 2
+
+audit_wazuh_agent
+sleep 2
+
+set_timeout
+sleep 2
+
+user_account_env
+sleep 2
+
+ # Pesan akhir
+    echo -e "${green}[*] Server berhasil di rollback pada konfigurasi awal.${nc}"
+    echo -e "${green}[✓] Semua langkah telah berhasil diterapkan.${nc}"
+
+
+}
+
+main
