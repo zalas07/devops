@@ -84,18 +84,18 @@ install_aide() {
         if [ $? -eq 0 ]; then 
             echo -e "\033[1;32mAIDE berhasil diinstall!\033[0m"
 
-            echo -e "\033[1;33mMelakukan inisialisasi AIDE...\033[0m"
-            sudo aideinit
+           # echo -e "\033[1;33mMelakukan inisialisasi AIDE...\033[0m"
+           # sudo aideinit
 
             # Salin hasil inisialisasi ke database default
-            if [ -f /var/lib/aide/aide.db.new ]; then
-                sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-            elif [ -f /var/lib/aide/aide.db.new.gz ]; then
-                sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
-            fi
+           # if [ -f /var/lib/aide/aide.db.new ]; then
+           #     sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+           # elif [ -f /var/lib/aide/aide.db.new.gz ]; then
+            #    sudo cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+            #fi
 
-            echo -e "\033[1;32mAIDE siap digunakan. Anda bisa mulai scan integritas dengan:\033[0m"
-            echo -e "\033[1;36msudo aide --check\033[0m"
+            #echo -e "\033[1;32mAIDE siap digunakan. Anda bisa mulai scan integritas dengan:\033[0m"
+            #echo -e "\033[1;36msudo aide --check\033[0m"
         else
             echo -e "\033[1;31mAIDE gagal diinstall. Periksa koneksi internet atau repo!\033[0m"
             return 1
