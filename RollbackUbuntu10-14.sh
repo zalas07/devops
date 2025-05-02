@@ -610,7 +610,7 @@ sleep 2
 rollback_network_parameters
 sleep 2
 
-rollback_network_parameter_host
+rollback_network_parameters_host
 sleep 2
 
 rollback_audit
