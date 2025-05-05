@@ -564,7 +564,7 @@ ssh_config() {
     chmod 600 "$SSH_CONFIG"
     echo "✅ Set permissions 600 on $SSH_CONFIG"
 
-    # Update atau tambahkan konfigurasi
+    # Fungsi update atau append konfigurasi
     update_or_append() {
         local key="$1"
         local value="$2"
@@ -575,6 +575,10 @@ ssh_config() {
         fi
     }
 
+    # Dapatkan versi OpenSSH
+    SSH_VER=$(sshd -V 2>&1 | grep -oE 'OpenSSH_[0-9]+\.[0-9]+' | cut -d_ -f2)
+    echo "ℹ️  Detected OpenSSH version: $SSH_VER"
+
     update_or_append "Protocol" "2"
     update_or_append "LogLevel" "INFO"
     update_or_append "X11Forwarding" "no"
@@ -584,29 +588,38 @@ ssh_config() {
     update_or_append "PermitRootLogin" "no"
     update_or_append "PermitEmptyPasswords" "no"
     update_or_append "PermitUserEnvironment" "no"
-    update_or_append "MACs" "hmac-sha2-512,hmac-sha2-256"
+
+    # Cek dukungan MACs
+    if [[ $(echo "$SSH_VER >= 6.6" | bc) -eq 1 ]]; then
+        update_or_append "MACs" "hmac-sha2-512,hmac-sha2-256"
+        echo "✅ MACs updated with SHA2 algorithms."
+    else
+        echo "⚠️  Skipping MACs config: not supported in OpenSSH $SSH_VER"
+    fi
+
     update_or_append "ClientAliveInterval" "300"
     update_or_append "ClientAliveCountMax" "0"
     update_or_append "LoginGraceTime" "60"
 
     echo "✅ SSH baseline configuration applied."
 
-    # Restart SSH service agar perubahan berlaku
-    if service sshd status > /dev/null; then
+    # Restart SSH service
+    if service sshd status > /dev/null 2>&1; then
         service sshd restart
         echo "✅ SSH service restarted."
-    elif service ssh status > /dev/null; then
+    elif service ssh status > /dev/null 2>&1; then
         service ssh restart
         echo "✅ SSH service restarted."
     else
         echo "⚠️  SSH service not found or not active."
     fi
 
-    # Pastikan SSH dimulai otomatis pada boot
-    chkconfig sshd on
-    chkconfig ssh on
+    # Enable on boot
+    chkconfig sshd on 2>/dev/null
+    chkconfig ssh on 2>/dev/null
     echo "✅ SSH service enabled on boot."
 }
+
 
 user_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
