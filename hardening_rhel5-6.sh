@@ -52,7 +52,7 @@ baseline_check() {
 }
 
 software_update() {
-    echo -e "${yellow}[*] Mengecek konfigurasi 'gpcheck' di /etc/yum.conf...${nc}"
+    echo -e "${yellow}[*] Mengecek konfigurasi 'gpgcheck' di /etc/yum.conf...${nc}"
 
     if [ ! -f /etc/yum.conf ]; then
         echo -e "${red}[X] File /etc/yum.conf tidak ditemukan.${nc}"
@@ -60,13 +60,13 @@ software_update() {
     fi
 
     # Jalankan grep dan simpan hasilnya
-    result=$(grep -E "^\s*gpcheck" /etc/yum.conf)
+    result=$(grep -E "^\s*gpgcheck" /etc/yum.conf)
 
     if [ -n "$result" ]; then
-        echo -e "${green}[✓] Ditemukan konfigurasi gpcheck di /etc/yum.conf:${nc}"
+        echo -e "${green}[✓] Ditemukan konfigurasi gpgcheck di /etc/yum.conf:${nc}"
         echo "$result"
     else
-        echo -e "${red}[X] Tidak ditemukan konfigurasi gpcheck di /etc/yum.conf.${nc}"
+        echo -e "${red}[X] Tidak ditemukan konfigurasi gpgcheck di /etc/yum.conf.${nc}"
     fi
 }
 
@@ -401,7 +401,7 @@ special_purpose_service_rhel() {
     echo -e "${green} Module Purpose Special service selesai.${nc}"
 }
 
-network_parameters() {
+network_parameters_host() {
     echo -e "${blue}=============================================="
     echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
@@ -757,9 +757,6 @@ disable_service_rhel
 sleep 2
 
 special_purpose_service_rhel
-sleep 2
-
-network_parameters
 sleep 2
 
 network_parameters_host
