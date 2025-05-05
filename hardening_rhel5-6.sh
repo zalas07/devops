@@ -51,6 +51,25 @@ baseline_check() {
     sleep 2
 }
 
+software_update() {
+    echo -e "${yellow}[*] Mengecek konfigurasi 'gpcheck' di /etc/yum.conf...${nc}"
+
+    if [ ! -f /etc/yum.conf ]; then
+        echo -e "${red}[X] File /etc/yum.conf tidak ditemukan.${nc}"
+        return 1
+    fi
+
+    # Jalankan grep dan simpan hasilnya
+    result=$(grep -E "^\s*gpcheck" /etc/yum.conf)
+
+    if [ -n "$result" ]; then
+        echo -e "${green}[✓] Ditemukan konfigurasi gpcheck di /etc/yum.conf:${nc}"
+        echo "$result"
+    else
+        echo -e "${red}[X] Tidak ditemukan konfigurasi gpcheck di /etc/yum.conf.${nc}"
+    fi
+}
+
 install_aide() {
     log "$blue" "============================================="
     log "$yellow" "Mengecek apakah paket AIDE sudah terinstall atau belum......"
@@ -729,6 +748,9 @@ echo -e "${nc}"
 sleep 2
 
 baseline_check
+sleep 2
+
+software_update
 sleep 2
 
 install_aide
