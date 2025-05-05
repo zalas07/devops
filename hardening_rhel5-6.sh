@@ -405,73 +405,48 @@ network_parameters() {
     echo -e "${blue}=============================================="
     echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
+    # Load br_netfilter jika ada parameter bridge
+    if grep -q "net.bridge" <<< "$(declare -p params 2>/dev/null)"; then
+        modprobe br_netfilter 2>/dev/null
+    fi
+
     # Daftar parameter yang ingin di set
     declare -A params=(
         ["net.ipv4.ip_forward"]="0"
         ["net.ipv4.conf.all.send_redirects"]="0"
         ["net.ipv4.conf.default.send_redirects"]="0"
+        ["net.ipv4.conf.all.accept_source_route"]="0"
+        ["net.ipv4.conf.default.accept_source_route"]="0"
+        ["net.ipv4.conf.all.accept_redirects"]="0"
+        ["net.ipv4.conf.default.accept_redirects"]="0"
+        ["net.ipv4.conf.all.secure_redirects"]="0"
+        ["net.ipv4.conf.default.secure_redirects"]="0"
+        ["net.ipv4.icmp_echo_ignore_broadcasts"]="1"
+        ["net.ipv4.icmp_ignore_bogus_error_responses"]="1"
+        ["net.ipv4.tcp_syncookies"]="1"
+        ["net.bridge.bridge-nf-call-ip6tables"]="0"
+        ["net.bridge.bridge-nf-call-iptables"]="0"
     )
 
     for param in "${!params[@]}"; do
         value="${params[$param]}"
-        if grep -q "^$param" /etc/sysctl.conf; then
-            current_value=$(grep "^$param" /etc/sysctl.conf | awk '{print $3}')
-            if [[ "$current_value" == "$value" ]]; then
-                echo -e "${green}[✓] $param sudah terset dengan nilai $value.${nc}"
-            else
+        
+        # Cek apakah parameter dikenali oleh sistem
+        if sysctl -a 2>/dev/null | grep -q "^$param"; then
+            if grep -q "^$param" /etc/sysctl.conf; then
                 sed -i "s|^$param.*|$param = $value|" /etc/sysctl.conf
-                echo -e "${yellow}[!] $param ditemukan, nilai diperbarui menjadi $value.${nc}"
+                echo -e "${yellow}[~] $param ditemukan, diperbarui menjadi $value.${nc}"
+            else
+                echo "$param = $value" >> /etc/sysctl.conf
+                echo -e "${cyan}[+] $param ditambahkan dengan nilai $value.${nc}"
             fi
         else
-            echo "$param = $value" >> /etc/sysctl.conf
-            echo -e "${cyan}[+] $param belum ada, ditambahkan dengan nilai $value.${nc}"
+            echo -e "${red}[X] Parameter $param tidak dikenali oleh sysctl. Dilewati.${nc}"
         fi
     done
 
     # Terapkan perubahan
-    sysctl -p > /dev/null
-    echo -e "${green}[✓] Parameter Keamanan Jaringan berhasil diterapkan.${nc}"
-}
-
-network_parameters_host() {
-    echo "[*] Memulai pengamanan parameter jaringan..."
-
-    # Backup sysctl.conf
-    cp /etc/sysctl.conf /etc/sysctl.conf.bak
-
-    # Daftar parameter dan nilai yang diinginkan
-    settings=(
-        "net.ipv4.conf.all.accept_source_route=0"
-        "net.ipv4.conf.default.accept_source_route=0"
-        "net.ipv4.conf.all.accept_redirects=0"
-        "net.ipv4.conf.default.accept_redirects=0"
-        "net.ipv4.conf.all.secure_redirects=0"
-        "net.ipv4.conf.default.secure_redirects=0"
-        "net.ipv4.conf.all.log_martians=1"
-        "net.ipv4.conf.default.log_martians=1"
-        "net.ipv4.icmp_echo_ignore_broadcasts=1"
-        "net.ipv4.icmp_ignore_bogus_error_responses=1"
-        "net.ipv4.conf.all.rp_filter=1"
-        "net.ipv4.conf.default.rp_filter=1"
-        "net.ipv4.tcp_syncookies=1"
-    )
-
-    for item in "${settings[@]}"; do
-        key=$(echo "$item" | cut -d= -f1)
-        value=$(echo "$item" | cut -d= -f2)
-
-        if grep -q "^$key" /etc/sysctl.conf; then
-            sed -i "s|^$key.*|$key = $value|" /etc/sysctl.conf
-            echo "[+] Diperbarui: $key = $value"
-        else
-            echo "$key = $value" >> /etc/sysctl.conf
-            echo "[+] Ditambahkan: $key = $value"
-        fi
-    done
-
-    # Terapkan perubahan
-    sysctl -p > /dev/null
-    echo "[✓] Pengamanan parameter jaringan selesai diterapkan."
+    sysctl -p > /dev/null && echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
 }
 
 audit() {
