@@ -537,6 +537,10 @@ EOF
     echo -e "[~] Mengatur max_log_file dan max_log_file_action di /etc/audit/auditd.conf..."
     sed -i 's/^max_log_file =.*/max_log_file = 200/' /etc/audit/auditd.conf
     sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
+    sed -i 's/^space_left =.*/space_left = 90/' /etc/audit/auditd.conf
+    sed -i 's/^admin_space_left =.*/admin_space_left = 80/' /etc/audit/auditd.conf
+    sed -i 's/^admin_space_left_action =.*/admin_space_left_action = ROTATE/' /etc/audit/auditd.conf
+    
     echo -e "[✓] Konfigurasi auditd.conf selesai."
 
     # Aktifkan dan jalankan service auditd dan rsyslog
