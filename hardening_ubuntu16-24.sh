@@ -484,103 +484,91 @@ network_parameters_host() {
 audit() {
     echo -e "${yellow}[*] Memulai konfigurasi auditd dan rsyslog...${nc}"
 
-    # Install auditd dan rsyslog di background
-    echo -e "${yellow}[~] Memeriksa dan menginstall auditd & rsyslog jika diperlukan...${nc}"
-    (sudo apt install -y auditd rsyslog) &
+    # --- Install paket yang diperlukan ---
+    echo -e "${yellow}[~] Memeriksa dan menginstal auditd & rsyslog...${nc}"
+    sudo apt-get update -qq
+    sudo apt-get install -y auditd rsyslog
 
-    # Tunggu semua instalasi selesai
-    wait
+    echo -e "${green}[✓] Instalasi selesai.${nc}"
 
-    echo -e "${green}[✓] Instalasi auditd dan rsyslog selesai.${nc}"
+    # --- Pastikan direktori rules.d ada ---
+    sudo mkdir -p /etc/audit/rules.d
 
-    # Pastikan direktori /etc/audit/rules.d/ ada
-    if [ ! -d /etc/audit/rules.d ]; then
-        echo -e "${yellow}[~] Direktori /etc/audit/rules.d tidak ada, membuatnya...${nc}"
-        sudo mkdir -p /etc/audit/rules.d
-    else
-        echo -e "${green}[✓] Direktori /etc/audit/rules.d sudah ada.${nc}"
-    fi
+    # --- Fungsi bantu untuk menulis file hanya jika isinya beda ---
+    write_if_diff() {
+        local filepath="$1"
+        local content="$2"
+        local tmpfile
+        tmpfile=$(mktemp)
 
-    # Konfigurasi file /etc/audit/audit.rules
-    if [ ! -f /etc/audit/audit.rules ]; then
-        echo -e "${yellow}[~] Membuat /etc/audit/audit.rules dengan konfigurasi dasar...${nc}"
-        sudo tee /etc/audit/audit.rules > /dev/null << EOF
+        echo "$content" > "$tmpfile"
+
+        if [[ -f "$filepath" ]] && diff -q "$filepath" "$tmpfile" > /dev/null; then
+            echo -e "${blue}[i] $filepath sudah sesuai, skip.${nc}"
+        else
+            echo -e "${yellow}[~] Menulis ulang $filepath...${nc}"
+            echo "$content" | sudo tee "$filepath" > /dev/null
+        fi
+
+        rm -f "$tmpfile"
+    }
+
+    # === RULES ===
+    write_if_diff "/etc/audit/rules.d/00-base.rules" "$(cat << 'EOF'
 -D
 -b 8192
 -f 1
--a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
--a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
--a always,exit -F arch=b64 -S clock_time -k time-change
--a always,exit -F arch=b32 -S clock_time -k time-change
+-a always,exit -F arch=b64 -S adjtimex,settimeofday -k time-change
+-a always,exit -F arch=b32 -S adjtimex,settimeofday,stime -k time-change
+-a always,exit -F arch=b64 -S clock_settime -k time-change
+-a always,exit -F arch=b32 -S clock_settime -k time-change
 -w /etc/localtime -p wa -k time-change
 --backlog_wait_time 60000
 EOF
-    else
-        echo -e "${green}[✓] File /etc/audit/audit.rules sudah ada.${nc}"
-    fi
+)"
 
-    # Konfigurasi file /etc/audit/rules.d/50-logins.rules
-    if [ ! -f /etc/audit/rules.d/50-logins.rules ]; then
-        echo -e "${yellow}[~] Membuat /etc/audit/rules.d/50-logins.rules...${nc}"
-        sudo tee /etc/audit/rules.d/50-logins.rules > /dev/null << EOF
-#login and logout are collected
+    write_if_diff "/etc/audit/rules.d/50-logins.rules" "$(cat << 'EOF'
 -w /var/log/lastlog -p wa -k logins
 -w /var/run/faillock/ -p wa -k logins
 EOF
-    else
-        echo -e "${green}[✓] File /etc/audit/rules.d/50-logins.rules sudah ada.${nc}"
-    fi
+)"
 
-    # Konfigurasi file /etc/audit/rules.d/50-delete.rules
-    if [ ! -f /etc/audit/rules.d/50-delete.rules ]; then
-        echo -e "${yellow}[~] Membuat /etc/audit/rules.d/50-delete.rules...${nc}"
-        sudo tee /etc/audit/rules.d/50-delete.rules > /dev/null << EOF
-#file deletion events by users are collected
+    write_if_diff "/etc/audit/rules.d/50-delete.rules" "$(cat << 'EOF'
 -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
 -a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
 EOF
-    else
-        echo -e "${green}[✓] File /etc/audit/rules.d/50-delete.rules sudah ada.${nc}"
-    fi
+)"
 
-    # Konfigurasi file /etc/audit/rules.d/50-scope.rules
-    if [ ! -f /etc/audit/rules.d/50-scope.rules ]; then
-        echo -e "${yellow}[~] Membuat /etc/audit/rules.d/50-scope.rules...${nc}"
-        sudo tee /etc/audit/rules.d/50-scope.rules > /dev/null << EOF
-#change to system administration scope(sudoers) is collected
+    write_if_diff "/etc/audit/rules.d/50-scope.rules" "$(cat << 'EOF'
 -w /etc/sudoers -p wa -k scope
 -w /etc/sudoers.d/ -p wa -k scope
 EOF
-    else
-        echo -e "${green}[✓] File /etc/audit/rules.d/50-scope.rules sudah ada.${nc}"
-    fi
+)"
 
-    # Konfigurasi file /etc/audit/rules.d/50-session.rules
-    if [ ! -f /etc/audit/rules.d/50-session.rules ]; then
-        echo -e "${yellow}[~] Membuat /etc/audit/rules.d/50-session.rules...${nc}"
-        sudo tee /etc/audit/rules.d/50-session.rules > /dev/null << EOF
-#session initiation information is collected
+    write_if_diff "/etc/audit/rules.d/50-session.rules" "$(cat << 'EOF'
 -w /var/run/utmp -p wa -k session
 -w /var/log/wtmp -p wa -k logins
 -w /var/log/btmp -p wa -k logins
 EOF
-    else
-        echo -e "${green}[✓] File /etc/audit/rules.d/50-session.rules sudah ada.${nc}"
-    fi
+)"
 
-    # Konfigurasi auditd.conf untuk log rotation
-    echo -e "${yellow}[~] Mengatur max_log_file dan max_log_file_action di /etc/audit/auditd.conf...${nc}"
-    sudo sed -i 's/^max_log_file =.*/max_log_file = 200/' /etc/audit/auditd.conf
-    sudo sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
-    echo -e "${green}[✓] Konfigurasi auditd.conf selesai.${nc}"
+    # === Konfigurasi auditd.conf ===
+    echo -e "${yellow}[~] Memeriksa konfigurasi /etc/audit/auditd.conf...${nc}"
+    sudo sed -i 's/^max_log_file *=.*/max_log_file = 200/' /etc/audit/auditd.conf
+    sudo sed -i 's/^max_log_file_action *=.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
+    echo -e "${green}[✓] auditd.conf dikonfigurasi.${nc}"
 
-    # Aktifkan dan jalankan service auditd dan rsyslog
-    echo -e "${yellow}[*] Mengaktifkan dan memulai service auditd dan rsyslog...${nc}"
-    sudo systemctl enable auditd rsyslog
-    sudo systemctl restart auditd rsyslog
+    # === Reload Rules ===
+    echo -e "${yellow}[~] Memuat ulang aturan audit menggunakan augenrules...${nc}"
+    sudo augenrules --load
 
-    echo -e "${green}[✓] Konfigurasi dasar auditd dan rsyslog selesai.${nc}"
+    # === Enable dan Restart Service ===
+    echo -e "${yellow}[~] Mengaktifkan dan memulai layanan auditd dan rsyslog...${nc}"
+    sudo systemctl enable --now auditd rsyslog
+
+    echo -e "${green}[✓] Konfigurasi auditd dan rsyslog selesai.${nc}"
 }
+
 
 
 ssh_config() {
