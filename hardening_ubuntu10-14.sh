@@ -718,8 +718,8 @@ ususer_account_env() {
 
     # Set umask di berbagai file
     set_umask_if_missing "/etc/login.defs"
-    set_umask_if_missing "/etc/bash.bashrc"
-    set_umask_if_missing "/etc/profile"
+   # set_umask_if_missing "/etc/bash.bashrc"
+   # set_umask_if_missing "/etc/profile"
 
     # Cek dan set TMOUT
     if grep -q "^TMOUT=" /etc/profile; then
