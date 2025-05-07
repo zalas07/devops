@@ -655,18 +655,13 @@ user_account_env() {
     update_login_defs_param() {
         local param="$1"
         local value="$2"
-        if grep -q "^${param}" /etc/login.defs; then
-            current_value=$(grep "^${param}" /etc/login.defs | awk '{print $2}')
-            if [ "$current_value" != "$value" ]; then
-                sudo sed -i "s/^${param}.*/${param} ${value}/" /etc/login.defs
-                echo -e "${yellow}[~] Mengupdate ${param} menjadi ${value}${nc}"
-            else
-                echo -e "${green}[✓] ${param} sudah diset ke ${value}${nc}"
-            fi
-        else
-            echo "${param} ${value}" | sudo tee -a /etc/login.defs > /dev/null
-            echo -e "${yellow}[+] Menambahkan ${param}=${value} ke /etc/login.defs${nc}"
-        fi
+
+        # Hapus semua baris lama yang match param
+        sudo sed -i "/^\s*${param}\b.*/d" /etc/login.defs
+
+        # Tambahkan satu baris baru
+        echo -e "${param} ${value}" | sudo tee -a /etc/login.defs > /dev/null
+        echo -e "${yellow}[+] Menambahkan atau mengganti ${param}=${value} di /etc/login.defs${nc}"
     }
 
     # Konfigurasi login.defs
@@ -680,22 +675,13 @@ user_account_env() {
         local file="$1"
 
         if [[ "$file" == "/etc/login.defs" ]]; then
-            if grep -Eq '^\s*UMASK\s+027' "$file"; then
-                echo -e "${green}[✓] UMASK 027 sudah disetel dengan benar di ${file}${nc}"
-            elif grep -Eq '^\s*UMASK\s+[0-9]{3}' "$file"; then
-                sudo sed -i 's/^\s*UMASK\s\+[0-9]\{3\}/UMASK 027/' "$file"
-                echo -e "${yellow}[~] Mengubah UMASK menjadi 027 di ${file}${nc}"
-            else
-                echo "UMASK 027" | sudo tee -a "$file" > /dev/null
-                echo -e "${yellow}[+] Menambahkan UMASK 027 ke ${file}${nc}"
-            fi
+            sudo sed -i '/^\s*UMASK\b.*/d' "$file"
+            echo "UMASK 027" | sudo tee -a "$file" > /dev/null
+            echo -e "${yellow}[+] UMASK 027 di-set ulang di ${file}${nc}"
         else
-            if grep -Eq '^\s*umask\s+027' "$file"; then
-                echo -e "${green}[✓] umask 027 sudah ada di ${file}${nc}"
-            else
-                echo "umask 027" | sudo tee -a "$file" > /dev/null
-                echo -e "${yellow}[+] Menambahkan umask 027 ke ${file}${nc}"
-            fi
+            sudo sed -i '/^\s*umask\b.*/d' "$file"
+            echo "umask 027" | sudo tee -a "$file" > /dev/null
+            echo -e "${yellow}[+] umask 027 di-set ulang di ${file}${nc}"
         fi
     }
 
@@ -704,24 +690,24 @@ user_account_env() {
     #set_umask_if_missing "/etc/profile"
     #set_umask_if_missing "/etc/bashrc"
 
-    # Set TMOUT (timeout otomatis logout)
-    if grep -q "^TMOUT=" /etc/profile; then
-        sudo sed -i 's/^TMOUT=.*/TMOUT=600/' /etc/profile
-        echo -e "${yellow}[~] Mengupdate TMOUT=600 di /etc/profile${nc}"
-    else
-        echo "TMOUT=600" | sudo tee -a /etc/profile > /dev/null
-        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/profile${nc}"
-    fi
+    # Fungsi bantu untuk set TMOUT jika belum ada atau salah
+    set_tmout() {
+        local file="$1"
+        local value="600"
 
-    # Tambahkan TMOUT ke /etc/bashrc jika belum ada (untuk non-login shell)
-    if ! grep -q "^TMOUT=" /etc/bashrc; then
-        echo "TMOUT=600" | sudo tee -a /etc/bashrc > /dev/null
-        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/bashrc${nc}"
-    fi
+        # Hapus semua baris TMOUT
+        sudo sed -i '/^\s*TMOUT=/d' "$file"
+
+        # Tambahkan TMOUT baru
+        echo "TMOUT=${value}" | sudo tee -a "$file" > /dev/null
+        echo -e "${yellow}[+] TMOUT=${value} di-set ulang di ${file}${nc}"
+    }
+
+    set_tmout "/etc/profile"
+    set_tmout "/etc/bashrc"
 
     echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
-
 
 audit_wazuh_agent() {
     echo "🛠️  Menambahkan audit rules untuk Wazuh Agent..."
