@@ -628,29 +628,48 @@ ssh_config() {
 user_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
-    # Mengatur expiration password
-    echo "PASS_MAX_DAYS 90" >> /etc/login.defs
-    echo "PASS_MIN_DAYS 7" >> /etc/login.defs
-    echo "PASS_WARN_AGE 7" >> /etc/login.defs
-    echo "INACTIVE 30" >> /etc/login.defs
+    # Fungsi bantu untuk set atau update parameter di /etc/login.defs
+    set_login_defs_param() {
+        local param="$1"
+        local value="$2"
+        if grep -qE "^$param" /etc/login.defs; then
+            if grep -qE "^$param\s+$value" /etc/login.defs; then
+                echo "[=] $param sudah di-set ke $value"
+            else
+                sed -i "s/^$param.*/$param $value/" /etc/login.defs
+                echo "[~] $param diperbarui ke $value"
+            fi
+        else
+            echo "$param $value" >> /etc/login.defs
+            echo "[+] $param ditambahkan dengan nilai $value"
+        fi
+    }
 
-    # Mengatur umask default di /etc/bashrc dan /etc/profile
-    if ! grep -q "umask 027" /etc/bashrc; then
-        echo "umask 027" >> /etc/bashrc
+    # Set kebijakan password expiration
+    set_login_defs_param "PASS_MAX_DAYS" 90
+    set_login_defs_param "PASS_MIN_DAYS" 7
+    set_login_defs_param "PASS_WARN_AGE" 7
+    set_login_defs_param "INACTIVE" 30
+
+    # Set umask default ke 027 di bashrc dan profile
+    for file in /etc/bashrc /etc/profile; do
+        if ! grep -q "^umask 027" "$file"; then
+            echo "umask 027" >> "$file"
+            echo "[+] umask 027 ditambahkan ke $file"
+        else
+            echo "[=] umask 027 sudah ada di $file"
+        fi
+    done
+
+    # Set TMOUT (auto-logout shell timeout)
+    if ! grep -q "^TMOUT=600" /etc/profile; then
+        echo "TMOUT=600" >> /etc/profile
+        echo "[+] TMOUT=600 ditambahkan ke /etc/profile"
+    else
+        echo "[=] TMOUT=600 sudah ada di /etc/profile"
     fi
-    if ! grep -q "umask 027" /etc/profile; then
-        echo "umask 027" >> /etc/profile
-    fi
 
-    # Mengatur shell timeout menjadi 600 detik
-    echo "TMOUT=600" >> /etc/profile
-
-    # Mengecek konfigurasi yang telah diterapkan
-    echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
-
-    # Untuk RHEL 5 dan 6, kita juga perlu mengatur agar kebijakan ini diterapkan pada semua user yang baru dibuat.
-    # Mengubah default shell untuk user yang baru
-    echo "Kebijakan user account dan environment telah diterapkan, pastikan untuk memverifikasi pengguna baru."
+    echo -e "${green}[✓] Pengaturan user account dan environment untuk RHEL 5/6 berhasil diterapkan.${nc}"
 }
 
 audit_wazuh_agent() {
