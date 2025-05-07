@@ -641,62 +641,50 @@ ssh_config() {
 }
 
 user_account_env() {
-    echo "🛠️  Menyiapkan pengaturan untuk user account dan environment..."
+    echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
-    # Update login.defs dengan parameter yang sesuai
-    LOGIN_DEFS="/etc/login.defs"
-    backup_file="${LOGIN_DEFS}.bak"
-
-    if [ ! -f "$backup_file" ]; then
-        cp "$LOGIN_DEFS" "$backup_file"
-        echo "✅ Backup login.defs dibuat: $backup_file"
-    fi
-
-    set_or_replace_def() {
-        local key="$1"
+    # Fungsi bantu untuk set atau update parameter di /etc/login.defs
+    set_login_defs_param() {
+        local param="$1"
         local value="$2"
-        if grep -qE "^${key}\b" "$LOGIN_DEFS"; then
-            sed -i "s/^${key}.*/${key} ${value}/" "$LOGIN_DEFS"
+        if grep -qE "^$param" /etc/login.defs; then
+            if grep -qE "^$param\s+$value" /etc/login.defs; then
+                echo "[=] $param sudah di-set ke $value"
+            else
+                sed -i "s/^$param.*/$param $value/" /etc/login.defs
+                echo "[~] $param diperbarui ke $value"
+            fi
         else
-            echo "${key} ${value}" >> "$LOGIN_DEFS"
+            echo "$param $value" >> /etc/login.defs
+            echo "[+] $param ditambahkan dengan nilai $value"
         fi
     }
 
-    set_or_replace_def "PASS_MAX_DAYS" "90"
-    set_or_replace_def "PASS_MIN_DAYS" "7"
-    set_or_replace_def "PASS_WARN_AGE" "7"
-    set_or_replace_def "INACTIVE" "30"
+    # Set kebijakan password expiration
+    set_login_defs_param "PASS_MAX_DAYS" 90
+    set_login_defs_param "PASS_MIN_DAYS" 7
+    set_login_defs_param "PASS_WARN_AGE" 7
+    set_login_defs_param "INACTIVE" 30
 
-    # Set default umask dan TMOUT di /etc/profile dan /etc/bash.bashrc
-    apply_env_setting() {
-        local file="$1"
-        grep -q "umask 027" "$file" || echo "umask 027" >> "$file"
-        grep -q "TMOUT=600" "$file" || echo "TMOUT=600" >> "$file"
-    }
-
-    if [ -f /etc/profile ]; then
-        apply_env_setting /etc/profile
-    fi
-
-    if [ -f /etc/bash.bashrc ]; then
-        apply_env_setting /etc/bash.bashrc
-    fi
-
-    if [ -f /etc/bashrc ]; then
-        apply_env_setting /etc/bashrc
-    fi
-
-    # Terapkan juga pada file skeleton (untuk user baru)
-    SKEL_FILES=(/etc/skel/.bashrc /etc/skel/.profile)
-    for skel_file in "${SKEL_FILES[@]}"; do
-        if [ -f "$skel_file" ]; then
-            grep -q "umask 027" "$skel_file" || echo "umask 027" >> "$skel_file"
-            grep -q "TMOUT=600" "$skel_file" || echo "TMOUT=600" >> "$skel_file"
+    # Set umask default ke 027 di /etc/bashrc dan /etc/profile
+    for file in /etc/bashrc /etc/profile; do
+        if ! grep -q "^umask 027" "$file"; then
+            echo "umask 027" >> "$file"
+            echo "[+] umask 027 ditambahkan ke $file"
+        else
+            echo "[=] umask 027 sudah ada di $file"
         fi
     done
 
-    echo "✅ Konfigurasi user account dan environment berhasil diterapkan."
-    echo "ℹ️  Periksa manual akun-akun yang sudah ada untuk memastikan aturan diterapkan."
+    # Set TMOUT (shell timeout) di /etc/profile.d/tmout.sh biar lebih modular
+    mkdir -p /etc/profile.d
+    tmout_file="/etc/profile.d/tmout.sh"
+    echo "TMOUT=600" > "$tmout_file"
+    echo "readonly TMOUT" >> "$tmout_file"
+    echo "export TMOUT" >> "$tmout_file"
+    echo "[+] TMOUT=600 diset secara permanen di $tmout_file"
+
+    echo -e "${green}[✓] Pengaturan user account dan environment untuk RHEL 7–9 berhasil diterapkan.${nc}"
 }
 
 audit_wazuh_agent() {
