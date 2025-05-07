@@ -205,7 +205,7 @@ apply_process_harden() {
 
     local banner="The System is for the use of BRI Authorized Users Only.
 Individuals using this computer system without authority, or in excess of their authority,
-are subject to having all of their activities on this system monitored and recorded."
+are subject to having all of their activities on this system monitored and recorded by system personnel. in the course of monitoring Individuals improperly using this system or in the course of system maintenance, the activities of authorized users may also be monitored."
 
     echo "$banner" | tee /etc/motd /etc/issue /etc/issue.net > /dev/null
 
