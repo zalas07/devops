@@ -719,16 +719,33 @@ user_account_env() {
     update_login_defs_param "PASS_WARN_AGE" 7
     update_login_defs_param "INACTIVE" 30
 
-    # Fungsi bantu untuk atur umask
-    set_umask_if_missing() {
-        local file="$1"
-        if grep -q "umask 027" "$file"; then
+    # Fungsi bantu untuk atur umask di file login.defs, bashrc, dll
+set_umask_if_missing() {
+    local file="$1"
+
+    # Untuk file /etc/login.defs (pakai format UMASK 027)
+    if [[ "$file" == "/etc/login.defs" ]]; then
+        if grep -q "^UMASK\s\+027" "$file"; then
+            echo -e "${green}[✓] UMASK 027 sudah ada di ${file}${nc}"
+        elif grep -q "^UMASK" "$file"; then
+            sudo sed -i 's/^UMASK.*/UMASK 027/' "$file"
+            echo -e "${yellow}[~] Mengubah UMASK menjadi 027 di ${file}${nc}"
+        else
+            echo "UMASK 027" | sudo tee -a "$file" > /dev/null
+            echo -e "${yellow}[+] Menambahkan UMASK 027 ke ${file}${nc}"
+        fi
+
+    # Untuk file bashrc, profile, dll (pakai format umask 027)
+    else
+        if grep -q "^umask 027" "$file"; then
             echo -e "${green}[✓] umask 027 sudah ada di ${file}${nc}"
         else
             echo "umask 027" | sudo tee -a "$file" > /dev/null
             echo -e "${yellow}[+] Menambahkan umask 027 ke ${file}${nc}"
         fi
-    }
+    fi
+}
+
 
     # Set umask
     set_umask_if_missing "/etc/bash.bashrc"
