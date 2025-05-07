@@ -425,7 +425,7 @@ special_purpose_service() {
     log "$green" "Module Special Purpose Service selesai."
 }
 
-network_parameters_host_rhel7_9() {
+network_parameters_host() {
     echo -e "${blue}=============================================="
     echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
@@ -805,10 +805,10 @@ sleep 2
 configure_selinux
 sleep 2
 
-disable_service_rhel
+disable_service
 sleep 2
 
-special_purpose_service_rhel
+special_purpose_service
 sleep 2
 
 network_parameters_host
