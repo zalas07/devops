@@ -704,28 +704,57 @@ set_timeout() {
 }
 
 
-# Fungsi untuk konfigurasi user account dan environment
 user_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
-    # Mengatur expiration password
-    echo "PASS_MAX_DAYS 90" >> /etc/login.defs
-    echo "PASS_MIN_DAYS 7" >> /etc/login.defs
-    echo "PASS_WARN_AGE 7" >> /etc/login.defs
-    echo "INACTIVE 30" >> /etc/login.defs
+    # Fungsi bantu untuk update atau tambahkan konfigurasi di /etc/login.defs
+    update_login_defs_param() {
+        local param="$1"
+        local value="$2"
+        if grep -q "^${param}" /etc/login.defs; then
+            current_value=$(grep "^${param}" /etc/login.defs | awk '{print $2}')
+            if [ "$current_value" != "$value" ]; then
+                sudo sed -i "s/^${param}.*/${param} ${value}/" /etc/login.defs
+                echo -e "${yellow}[~] Mengupdate ${param} menjadi ${value}${nc}"
+            else
+                echo -e "${green}[✓] ${param} sudah diset ke ${value}${nc}"
+            fi
+        else
+            echo "${param} ${value}" | sudo tee -a /etc/login.defs > /dev/null
+            echo -e "${yellow}[+] Menambahkan ${param}=${value} ke /etc/login.defs${nc}"
+        fi
+    }
 
-    # Mengatur umask default di /etc/bashrc dan /etc/profile
-    if ! grep -q "umask 027" /etc/bashrc; then
-        echo "umask 027" >> /etc/bashrc
+    # Konfigurasi login.defs
+    update_login_defs_param "PASS_MAX_DAYS" 90
+    update_login_defs_param "PASS_MIN_DAYS" 7
+    update_login_defs_param "PASS_WARN_AGE" 7
+    update_login_defs_param "INACTIVE" 30
+
+    # Fungsi bantu untuk atur umask
+    set_umask_if_missing() {
+        local file="$1"
+        if grep -q "umask 027" "$file"; then
+            echo -e "${green}[✓] umask 027 sudah ada di ${file}${nc}"
+        else
+            echo "umask 027" | sudo tee -a "$file" > /dev/null
+            echo -e "${yellow}[+] Menambahkan umask 027 ke ${file}${nc}"
+        fi
+    }
+
+    # Set umask
+    set_umask_if_missing "/etc/bash.bashrc"
+    set_umask_if_missing "/etc/profile"
+
+    # Cek dan set TMOUT
+    if grep -q "TMOUT=" /etc/profile; then
+        sudo sed -i 's/^TMOUT=.*/TMOUT=600/' /etc/profile
+        echo -e "${yellow}[~] Mengupdate TMOUT=600 di /etc/profile${nc}"
+    else
+        echo "TMOUT=600" | sudo tee -a /etc/profile > /dev/null
+        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/profile${nc}"
     fi
-    if ! grep -q "umask 027" /etc/profile; then
-        echo "umask 027" >> /etc/profile
-    fi
 
-    # Mengatur shell timeout menjadi 600 detik
-    echo "TMOUT=600" >> /etc/profile
-
-    # Mengecek konfigurasi yang telah diterapkan
     echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
 
