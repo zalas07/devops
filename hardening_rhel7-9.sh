@@ -651,49 +651,77 @@ ssh_config() {
 user_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
-    # Fungsi bantu untuk set atau update parameter di /etc/login.defs
-    set_login_defs_param() {
+    # Fungsi bantu untuk update atau tambahkan konfigurasi di /etc/login.defs
+    update_login_defs_param() {
         local param="$1"
         local value="$2"
-        if grep -qE "^$param" /etc/login.defs; then
-            if grep -qE "^$param\s+$value" /etc/login.defs; then
-                echo "[=] $param sudah di-set ke $value"
+        if grep -q "^${param}" /etc/login.defs; then
+            current_value=$(grep "^${param}" /etc/login.defs | awk '{print $2}')
+            if [ "$current_value" != "$value" ]; then
+                sudo sed -i "s/^${param}.*/${param} ${value}/" /etc/login.defs
+                echo -e "${yellow}[~] Mengupdate ${param} menjadi ${value}${nc}"
             else
-                sed -i "s/^$param.*/$param $value/" /etc/login.defs
-                echo "[~] $param diperbarui ke $value"
+                echo -e "${green}[✓] ${param} sudah diset ke ${value}${nc}"
             fi
         else
-            echo "$param $value" >> /etc/login.defs
-            echo "[+] $param ditambahkan dengan nilai $value"
+            echo "${param} ${value}" | sudo tee -a /etc/login.defs > /dev/null
+            echo -e "${yellow}[+] Menambahkan ${param}=${value} ke /etc/login.defs${nc}"
         fi
     }
 
-    # Set kebijakan password expiration
-    set_login_defs_param "PASS_MAX_DAYS" 90
-    set_login_defs_param "PASS_MIN_DAYS" 7
-    set_login_defs_param "PASS_WARN_AGE" 7
-    set_login_defs_param "INACTIVE" 30
+    # Konfigurasi login.defs
+    update_login_defs_param "PASS_MAX_DAYS" 90
+    update_login_defs_param "PASS_MIN_DAYS" 7
+    update_login_defs_param "PASS_WARN_AGE" 7
+    update_login_defs_param "INACTIVE" 30
 
-    # Set umask default ke 027 di /etc/bashrc dan /etc/profile
-    for file in /etc/bashrc /etc/profile; do
-        if ! grep -q "^umask 027" "$file"; then
-            echo "umask 027" >> "$file"
-            echo "[+] umask 027 ditambahkan ke $file"
+    # Fungsi bantu untuk atur umask di login.defs dan environment shell
+    set_umask_if_missing() {
+        local file="$1"
+
+        if [[ "$file" == "/etc/login.defs" ]]; then
+            if grep -Eq '^\s*UMASK\s+027' "$file"; then
+                echo -e "${green}[✓] UMASK 027 sudah disetel dengan benar di ${file}${nc}"
+            elif grep -Eq '^\s*UMASK\s+[0-9]{3}' "$file"; then
+                sudo sed -i 's/^\s*UMASK\s\+[0-9]\{3\}/UMASK 027/' "$file"
+                echo -e "${yellow}[~] Mengubah UMASK menjadi 027 di ${file}${nc}"
+            else
+                echo "UMASK 027" | sudo tee -a "$file" > /dev/null
+                echo -e "${yellow}[+] Menambahkan UMASK 027 ke ${file}${nc}"
+            fi
         else
-            echo "[=] umask 027 sudah ada di $file"
+            if grep -Eq '^\s*umask\s+027' "$file"; then
+                echo -e "${green}[✓] umask 027 sudah ada di ${file}${nc}"
+            else
+                echo "umask 027" | sudo tee -a "$file" > /dev/null
+                echo -e "${yellow}[+] Menambahkan umask 027 ke ${file}${nc}"
+            fi
         fi
-    done
+    }
 
-    # Set TMOUT (shell timeout) di /etc/profile.d/tmout.sh biar lebih modular
-    mkdir -p /etc/profile.d
-    tmout_file="/etc/profile.d/tmout.sh"
-    echo "TMOUT=600" > "$tmout_file"
-    echo "readonly TMOUT" >> "$tmout_file"
-    echo "export TMOUT" >> "$tmout_file"
-    echo "[+] TMOUT=600 diset secara permanen di $tmout_file"
+    # Set umask di berbagai file
+    set_umask_if_missing "/etc/login.defs"
+    #set_umask_if_missing "/etc/profile"
+    #set_umask_if_missing "/etc/bashrc"
 
-    echo -e "${green}[✓] Pengaturan user account dan environment untuk RHEL 7–9 berhasil diterapkan.${nc}"
+    # Set TMOUT (timeout otomatis logout)
+    if grep -q "^TMOUT=" /etc/profile; then
+        sudo sed -i 's/^TMOUT=.*/TMOUT=600/' /etc/profile
+        echo -e "${yellow}[~] Mengupdate TMOUT=600 di /etc/profile${nc}"
+    else
+        echo "TMOUT=600" | sudo tee -a /etc/profile > /dev/null
+        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/profile${nc}"
+    fi
+
+    # Tambahkan TMOUT ke /etc/bashrc jika belum ada (untuk non-login shell)
+    if ! grep -q "^TMOUT=" /etc/bashrc; then
+        echo "TMOUT=600" | sudo tee -a /etc/bashrc > /dev/null
+        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/bashrc${nc}"
+    fi
+
+    echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
+
 
 audit_wazuh_agent() {
     echo "🛠️  Menambahkan audit rules untuk Wazuh Agent..."
