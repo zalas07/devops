@@ -666,7 +666,7 @@ echo -e "\033[1;34m===============================================\033[0m"
 
 
 # Fungsi untuk konfigurasi user account dan environment
-ususer_account_env() {
+user_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
     # Fungsi bantu untuk update atau tambahkan konfigurasi di /etc/login.defs
@@ -780,7 +780,7 @@ sleep 2
 network_parameters_host
 sleep 2
 
-audit
+audit_legacy
 sleep 2
 
 ssh_config
