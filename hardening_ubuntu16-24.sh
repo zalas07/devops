@@ -186,8 +186,9 @@ log "$yellow" "menambahkan banner message...."
 #local issue_file_net = "/etc/issue.net"
 
 local banner="The System is for the use of BRI Authorized Users Only.
-Individuals using this Computer system without authority, or in excess of their authority,
-are subject to having all of their activities on this system monitored and recorded."
+Individuals using this computer system without authority, or in excess of their authority,
+are subject to having all of their activities on this system monitored and recorded by system personnel. in the course of monitoring Individuals improperly using this system or in the course of system maintenance, the activities of authorized users may also be monitored."
+
 
 if  [ -f /etc/motd ]; then
      #jikalu file motd ada
