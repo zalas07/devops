@@ -665,38 +665,71 @@ echo -e "\033[1;34m===============================================\033[0m"
 
 
 # Fungsi untuk konfigurasi user account dan environment
-user_account_env() {
-echo -e "\033[1;34m===============================================\033[0m"
+ususer_account_env() {
     echo -e "${yellow}[*] Menyiapkan pengaturan untuk user account dan environment...${nc}"
 
-    # Mengatur expiration password di /etc/login.defs
-    if ! grep -q "PASS_MAX_DAYS" /etc/login.defs; then
-        echo "PASS_MAX_DAYS 90" >> /etc/login.defs
-    fi
-    if ! grep -q "PASS_MIN_DAYS" /etc/login.defs; then
-        echo "PASS_MIN_DAYS 7" >> /etc/login.defs
-    fi
-    if ! grep -q "PASS_WARN_AGE" /etc/login.defs; then
-        echo "PASS_WARN_AGE 7" >> /etc/login.defs
-    fi
-    if ! grep -q "INACTIVE" /etc/login.defs; then
-        echo "INACTIVE 30" >> /etc/login.defs
+    # Fungsi bantu untuk update atau tambahkan konfigurasi di /etc/login.defs
+    update_login_defs_param() {
+        local param="$1"
+        local value="$2"
+        if grep -q "^${param}" /etc/login.defs; then
+            current_value=$(grep "^${param}" /etc/login.defs | awk '{print $2}')
+            if [ "$current_value" != "$value" ]; then
+                sudo sed -i "s/^${param}.*/${param} ${value}/" /etc/login.defs
+                echo -e "${yellow}[~] Mengupdate ${param} menjadi ${value}${nc}"
+            else
+                echo -e "${green}[✓] ${param} sudah diset ke ${value}${nc}"
+            fi
+        else
+            echo "${param} ${value}" | sudo tee -a /etc/login.defs > /dev/null
+            echo -e "${yellow}[+] Menambahkan ${param}=${value} ke /etc/login.defs${nc}"
+        fi
+    }
+
+    # Konfigurasi login.defs
+    update_login_defs_param "PASS_MAX_DAYS" 90
+    update_login_defs_param "PASS_MIN_DAYS" 7
+    update_login_defs_param "PASS_WARN_AGE" 7
+    update_login_defs_param "INACTIVE" 30
+
+    # Fungsi bantu untuk atur umask di login.defs dan environment shell
+    set_umask_if_missing() {
+        local file="$1"
+
+        if [[ "$file" == "/etc/login.defs" ]]; then
+            if grep -Eq '^\s*UMASK\s+027' "$file"; then
+                echo -e "${green}[✓] UMASK 027 sudah disetel dengan benar di ${file}${nc}"
+            elif grep -Eq '^\s*UMASK\s+[0-9]{3}' "$file"; then
+                sudo sed -i 's/^\s*UMASK\s\+[0-9]\{3\}/UMASK 027/' "$file"
+                echo -e "${yellow}[~] Mengubah UMASK menjadi 027 di ${file}${nc}"
+            else
+                echo "UMASK 027" | sudo tee -a "$file" > /dev/null
+                echo -e "${yellow}[+] Menambahkan UMASK 027 ke ${file}${nc}"
+            fi
+        else
+            if grep -Eq '^\s*umask\s+027' "$file"; then
+                echo -e "${green}[✓] umask 027 sudah ada di ${file}${nc}"
+            else
+                echo "umask 027" | sudo tee -a "$file" > /dev/null
+                echo -e "${yellow}[+] Menambahkan umask 027 ke ${file}${nc}"
+            fi
+        fi
+    }
+
+    # Set umask di berbagai file
+    set_umask_if_missing "/etc/login.defs"
+    set_umask_if_missing "/etc/bash.bashrc"
+    set_umask_if_missing "/etc/profile"
+
+    # Cek dan set TMOUT
+    if grep -q "^TMOUT=" /etc/profile; then
+        sudo sed -i 's/^TMOUT=.*/TMOUT=600/' /etc/profile
+        echo -e "${yellow}[~] Mengupdate TMOUT=600 di /etc/profile${nc}"
+    else
+        echo "TMOUT=600" | sudo tee -a /etc/profile > /dev/null
+        echo -e "${yellow}[+] Menambahkan TMOUT=600 ke /etc/profile${nc}"
     fi
 
-    # Mengatur umask default di /etc/bash.bashrc dan /etc/profile (mengganti bashrc ke bash.bashrc jika perlu)
-    if ! grep -q "umask 027" /etc/bash.bashrc; then
-        echo "umask 027" >> /etc/bash.bashrc
-    fi
-    if ! grep -q "umask 027" /etc/profile; then
-        echo "umask 027" >> /etc/profile
-    fi
-
-    # Mengatur shell timeout menjadi 600 detik
-    if ! grep -q "TMOUT=600" /etc/profile; then
-        echo "TMOUT=600" >> /etc/profile
-    fi
-
-    # Mengecek konfigurasi yang telah diterapkan
     echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
 
