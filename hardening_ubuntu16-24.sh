@@ -223,13 +223,13 @@ install_apparmor() {
         exit 1
     fi
 
-    echo "[*] Updating parser.conf with write_cache and show_cache options..."
-    if [ -f /etc/apparmor/parser.conf ]; then
-        grep -qxF 'write_cache' /etc/apparmor/parser.conf || echo 'write_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
-        grep -qxF 'show_cache' /etc/apparmor/parser.conf || echo 'show_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
-    else
-        echo "[!] parser.conf not found. Skipping."
-    fi
+    #echo "[*] Updating parser.conf with write_cache and show_cache options..."
+    #if [ -f /etc/apparmor/parser.conf ]; then
+     #   grep -qxF 'write_cache' /etc/apparmor/parser.conf || echo 'write_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
+     #   grep -qxF 'show_cache' /etc/apparmor/parser.conf || echo 'show_cache' | sudo tee -a /etc/apparmor/parser.conf > /dev/null
+    #else
+     #   echo "[!] parser.conf not found. Skipping."
+    #fi
 
     echo "[*] Reloading all AppArmor profiles..."
     sudo apparmor_parser -r /etc/apparmor.d/* > /dev/null 2>&1
