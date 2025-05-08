@@ -482,12 +482,12 @@ audit_legacy() {
 
     # --- Backup audit.rules lama ---
     if [[ -f /etc/audit/audit.rules ]]; then
-        sudo cp /etc/audit/audit.rules /etc/audit/audit.rules.bak
-        echo -e "${blue}[i] Backup audit.rules disimpan di audit.rules.bak${nc}"
+        sudo cp /etc/audit/audit.rules "/etc/audit/audit.rules.bak.$(date +%F_%T)"
+        echo -e "${blue}[i] Backup audit.rules disimpan dengan timestamp.${nc}"
     fi
 
     # --- Isi aturan langsung ke audit.rules ---
-    audit_rules_content=$(cat << 'EOF'
+    read -r -d '' audit_rules_content << 'EOF'
 -D
 -b 8192
 -f 1
@@ -496,7 +496,6 @@ audit_legacy() {
 -a always,exit -F arch=b64 -S clock_settime -k time-change
 -a always,exit -F arch=b32 -S clock_settime -k time-change
 -w /etc/localtime -p wa -k time-change
---backlog_wait_time 60000
 
 -w /var/log/lastlog -p wa -k logins
 -w /var/run/faillock/ -p wa -k logins
@@ -511,7 +510,6 @@ audit_legacy() {
 -w /var/log/wtmp -p wa -k logins
 -w /var/log/btmp -p wa -k logins
 EOF
-)
 
     tmpfile=$(mktemp)
     echo "$audit_rules_content" > "$tmpfile"
@@ -533,13 +531,25 @@ EOF
     sudo sed -i 's/^space_left_action *=.*/space_left_action = ROTATE/' /etc/audit/auditd.conf
     sudo sed -i 's/^admin_space_left *=.*/admin_space_left = 80/' /etc/audit/auditd.conf
     sudo sed -i 's/^admin_space_left_action *=.*/admin_space_left_action = ROTATE/' /etc/audit/auditd.conf
-    
+
     echo -e "${green}[✓] auditd.conf dikonfigurasi.${nc}"
 
     # --- Aktifkan layanan ---
     echo -e "${yellow}[~] Mengaktifkan auditd dan rsyslog...${nc}"
     sudo service auditd restart
+    sleep 2
     sudo service rsyslog restart
+
+    if ! pgrep auditd > /dev/null; then
+        echo -e "${red}[✗] auditd gagal berjalan. Periksa konfigurasi dan kernel audit support.${nc}"
+        sudo tail -n 20 /var/log/syslog | grep auditd
+    else
+        echo -e "${green}[✓] auditd berhasil dijalankan.${nc}"
+    fi
+
+    # --- Set backlog_wait_time langsung via auditctl ---
+    echo -e "${yellow}[~] Menyesuaikan backlog_wait_time via auditctl...${nc}"
+    sudo auditctl --backlog_wait_time 60000
 
     # --- Load ulang rules ---
     echo -e "${yellow}[~] Memuat ulang aturan audit menggunakan auditctl...${nc}"
@@ -547,6 +557,7 @@ EOF
 
     echo -e "${green}[✓] Konfigurasi auditd legacy selesai.${nc}"
 }
+
 
 
 ssh_config() {
