@@ -557,6 +557,11 @@ EOF
     echo -e "${yellow}[~] Memeriksa konfigurasi /etc/audit/auditd.conf...${nc}"
     sudo sed -i 's/^max_log_file *=.*/max_log_file = 200/' /etc/audit/auditd.conf
     sudo sed -i 's/^max_log_file_action *=.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
+    sudo sed -i 's/^space_left *=.*/space_left = 90/' /etc/audit/auditd.conf
+    sudo sed -i 's/^space_left_action *=.*/space_left_action = ROTATE/' /etc/audit/auditd.conf
+    sudo sed -i 's/^admin_space_left *=.*/admin_space_left = 80/' /etc/audit/auditd.conf
+    sudo sed -i 's/^admin_space_left_action *=.*/admin_space_left_action = ROTATE/' /etc/audit/auditd.conf
+    
     echo -e "${green}[✓] auditd.conf dikonfigurasi.${nc}"
 
     # === Reload Rules ===
