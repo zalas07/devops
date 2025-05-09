@@ -494,8 +494,10 @@ EOF
     # Penghapusan file oleh user (pakai format benar)
     add_syscall_rule b64 delete unlink unlinkat rename renameat
     add_syscall_rule b32 delete unlink unlinkat rename renameat
-
-    echo "-F auid>=500 -F auid!=4294967295" >> "$TMP_RULES"
+    
+    -a always,exit -F arch=b64 -S unlink,rename -k delete
+    -a always,exit -F arch=b32 -S unlink,rename -k delete
+    #echo "-F auid>=500 -F auid!=4294967295" >> "$TMP_RULES"
 
     # Akses sudoers
     echo "-w /etc/sudoers -p wa -k scope" >> "$TMP_RULES"
