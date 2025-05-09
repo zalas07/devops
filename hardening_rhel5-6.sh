@@ -450,7 +450,6 @@ network_parameters_host() {
     sysctl -p > /dev/null && echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
 }
 
-
 audit() {
     echo -e "[*] Memulai konfigurasi auditd dan rsyslog..."
 
@@ -459,41 +458,61 @@ audit() {
     yum install -y audit rsyslog
     echo -e "[✓] Instalasi auditd dan rsyslog selesai."
 
-    # Konfigurasi audit.rules langsung
-    echo -e "[~] Membuat /etc/audit/audit.rules dengan konfigurasi lengkap..."
-    cat << EOF > /etc/audit/audit.rules
+    # Siapkan lokasi rules sementara
+    TMP_RULES="/tmp/audit.rules"
+    echo -e "[~] Membuat rules audit secara dinamis berdasarkan syscall yang tersedia..."
+
+    # Awal rules
+    cat << EOF > "$TMP_RULES"
 -D
 -b 8192
 -f 1
-
-# Waktu & jam
--a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
--a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
--a always,exit -F arch=b64 -S clock_time -k time-change
--a always,exit -F arch=b32 -S clock_time -k time-change
--w /etc/localtime -p wa -k time-change
-
-# Login dan logout
--w /var/log/lastlog -p wa -k logins
--w /var/run/faillock/ -p wa -k logins
-
-# Penghapusan file oleh user
--a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
--a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
-
-# Akses sudoers
--w /etc/sudoers -p wa -k scope
--w /etc/sudoers.d/ -p wa -k scope
-
-# Sesi login user
--w /var/run/utmp -p wa -k session
--w /var/log/wtmp -p wa -k logins
--w /var/log/btmp -p wa -k logins
-
-# Rules tambahan untuk Wazuh Agent
--a always,exit -F arch=b64 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
--a always,exit -F arch=b32 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
 EOF
+
+    # Helper: hanya tambahkan rule kalau syscall tersedia
+    add_syscall_rule() {
+        local arch=$1
+        local key=$2
+        shift 2
+        for syscall in "$@"; do
+            if ausyscall --dump | awk '{print $2}' | grep -qw "$syscall"; then
+                echo "-a always,exit -F arch=$arch -S $syscall -k $key" >> "$TMP_RULES"
+            fi
+        done
+    }
+
+    # Waktu & jam
+    add_syscall_rule b64 time-change adjtimex settimeofday
+    add_syscall_rule b32 time-change adjtimex settimeofday stime
+
+    echo "-w /etc/localtime -p wa -k time-change" >> "$TMP_RULES"
+
+    # Login dan logout
+    echo "-w /var/log/lastlog -p wa -k logins" >> "$TMP_RULES"
+    echo "-w /var/run/faillock/ -p wa -k logins" >> "$TMP_RULES"
+
+    # Penghapusan file oleh user (pakai format benar)
+    add_syscall_rule b64 delete unlink unlinkat rename renameat
+    add_syscall_rule b32 delete unlink unlinkat rename renameat
+
+    echo "-F auid>=500 -F auid!=4294967295" >> "$TMP_RULES"
+
+    # Akses sudoers
+    echo "-w /etc/sudoers -p wa -k scope" >> "$TMP_RULES"
+    echo "-w /etc/sudoers.d/ -p wa -k scope" >> "$TMP_RULES"
+
+    # Sesi login user
+    echo "-w /var/run/utmp -p wa -k session" >> "$TMP_RULES"
+    echo "-w /var/log/wtmp -p wa -k logins" >> "$TMP_RULES"
+    echo "-w /var/log/btmp -p wa -k logins" >> "$TMP_RULES"
+
+    # Rules tambahan untuk Wazuh Agent
+    add_syscall_rule b64 audit-wazuh-c execve
+    add_syscall_rule b32 audit-wazuh-c execve
+
+    # Pindahkan ke lokasi final
+    cp "$TMP_RULES" /etc/audit/audit.rules
+    rm -f "$TMP_RULES"
     echo -e "[✓] Konfigurasi /etc/audit/audit.rules selesai."
 
     # Konfigurasi auditd.conf
@@ -513,6 +532,7 @@ EOF
     chkconfig rsyslog on
     echo -e "[✓] Konfigurasi dasar auditd dan rsyslog selesai."
 }
+
 
 
 ssh_config() {
