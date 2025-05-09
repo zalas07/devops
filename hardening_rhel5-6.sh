@@ -406,16 +406,6 @@ network_parameters_host() {
     echo -e "${blue}=============================================="
     echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
-   # Load modul br_netfilter jika tersedia
-if lsmod | grep -q br_netfilter || modprobe br_netfilter 2>/dev/null; then
-    echo -e "${cyan}[+] Modul br_netfilter tersedia.${nc}"
-else
-    echo -e "${red}[X] Modul br_netfilter tidak tersedia. Parameter bridge-* akan dilewati.${nc}"
-    unset params["net.bridge.bridge-nf-call-iptables"]
-    unset params["net.bridge.bridge-nf-call-ip6tables"]
-fi
-
-
     # Daftar parameter yang ingin di set
     declare -A params=(
         ["net.ipv4.ip_forward"]="0"
@@ -434,25 +424,37 @@ fi
         ["net.bridge.bridge-nf-call-iptables"]="0"
     )
 
+    # Cek dan load modul br_netfilter jika diperlukan
+    if lsmod | grep -q br_netfilter || modprobe br_netfilter 2>/dev/null; then
+        echo -e "${cyan}[+] Modul br_netfilter tersedia.${nc}"
+    else
+        echo -e "${red}[X] Modul br_netfilter tidak tersedia. Parameter bridge-* akan dilewati.${nc}"
+        unset params["net.bridge.bridge-nf-call-iptables"]
+        unset params["net.bridge.bridge-nf-call-ip6tables"]
+    fi
+
     for param in "${!params[@]}"; do
         value="${params[$param]}"
-        
-        # Cek apakah parameter dikenali oleh sistem
-        if sysctl -a 2>/dev/null | grep -q "^$param"; then
+        sysctl_path="/proc/sys/${param//./\/}"
+
+        if [[ -f "$sysctl_path" ]]; then
             if grep -q "^$param" /etc/sysctl.conf; then
                 sed -i "s|^$param.*|$param = $value|" /etc/sysctl.conf
-                echo -e "${yellow}[~] $param ditemukan, diperbarui menjadi $value.${nc}"
+                echo -e "${yellow}[~] $param diperbarui ke $value.${nc}"
             else
                 echo "$param = $value" >> /etc/sysctl.conf
                 echo -e "${cyan}[+] $param ditambahkan dengan nilai $value.${nc}"
             fi
-        else
-            echo -e "${red}[X] Parameter $param tidak dikenali oleh sysctl. Dilewati.${nc}"
         fi
+        # Jika param tidak valid, tidak ditampilkan (silent skip)
     done
 
-    # Terapkan perubahan
-    sysctl -p > /dev/null && echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
+    # Terapkan perubahan tanpa output error
+    if sysctl -p > /dev/null 2>&1; then
+        echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
+    else
+        echo -e "${red}[X] Gagal menerapkan beberapa parameter sysctl.${nc}"
+    fi
 }
 
 audit() {
