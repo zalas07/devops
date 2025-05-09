@@ -454,12 +454,12 @@ network_parameters_host() {
 audit() {
     echo -e "[*] Memulai konfigurasi auditd dan rsyslog..."
 
-    # Memeriksa dan menginstal auditd & rsyslog jika diperlukan
+    # Instalasi jika belum ada
     echo -e "[~] Memeriksa dan menginstall auditd & rsyslog jika diperlukan..."
     yum install -y audit rsyslog
     echo -e "[✓] Instalasi auditd dan rsyslog selesai."
 
-    # Konfigurasi file /etc/audit/audit.rules
+    # Konfigurasi audit.rules langsung
     echo -e "[~] Membuat /etc/audit/audit.rules dengan konfigurasi lengkap..."
     cat << EOF > /etc/audit/audit.rules
 -D
@@ -489,10 +489,14 @@ audit() {
 -w /var/run/utmp -p wa -k session
 -w /var/log/wtmp -p wa -k logins
 -w /var/log/btmp -p wa -k logins
+
+# Rules tambahan untuk Wazuh Agent
+-a always,exit -F arch=b64 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
+-a always,exit -F arch=b32 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
 EOF
     echo -e "[✓] Konfigurasi /etc/audit/audit.rules selesai."
 
-    # Konfigurasi auditd.conf untuk log rotation dan threshold disk
+    # Konfigurasi auditd.conf
     echo -e "[~] Mengatur parameter log di /etc/audit/auditd.conf..."
     sed -i 's/^max_log_file =.*/max_log_file = 200/' /etc/audit/auditd.conf
     sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
@@ -501,7 +505,7 @@ EOF
     sed -i 's/^admin_space_left_action =.*/admin_space_left_action = SUSPEND/' /etc/audit/auditd.conf
     echo -e "[✓] Konfigurasi /etc/audit/auditd.conf selesai."
 
-    # Aktifkan dan jalankan service auditd dan rsyslog
+    # Aktifkan service
     echo -e "[*] Mengaktifkan dan memulai service auditd dan rsyslog..."
     service auditd start
     service rsyslog start
@@ -655,47 +659,6 @@ user_account_env() {
     echo -e "${green}[✓] Pengaturan untuk user account dan environment berhasil diterapkan.${nc}"
 }
 
-audit_wazuh_agent() {
-    echo -e "${yellow}[*] Menambahkan audit rules untuk Wazuh Agent...${nc}"
-
-    rules_dir="/etc/audit/rules.d"
-    wazuh_rules_file="$rules_dir/wazuh.rules"
-
-    # Cek apakah folder rules.d ada
-    if [ ! -d "$rules_dir" ]; then
-        echo -e "${red}[X] Folder $rules_dir tidak ditemukan. Pastikan auditd terinstall.${nc}"
-        return 1
-    fi
-
-    # Kalau sudah ada file wazuh.rules, backup dulu
-    if [ -f "$wazuh_rules_file" ]; then
-        backup_file="${wazuh_rules_file}.bak.$(date +%s)"
-        echo -e "${blue}[~] Membuat backup file: $backup_file${nc}"
-        sudo cp "$wazuh_rules_file" "$backup_file"
-    fi
-
-    # Isi rules untuk Wazuh
-    echo -e "${blue}[~] Menulis rules baru ke $wazuh_rules_file${nc}"
-    sudo tee "$wazuh_rules_file" > /dev/null <<EOF
--a always,exit -F arch=b64 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
--a always,exit -F arch=b32 -S execve -F auid>=0 -F egid!=994 -F auid=-1 -F key=audit-wazuh-c
-EOF
-
-    # Apply rules
-    echo -e "${blue}[~] Reloading auditd rules...${nc}"
-    # Pada RHEL 5 dan 6, kita harus menggunakan service restart langsung untuk reload auditd
-    if sudo service auditd restart; then
-        echo -e "${green}[✓] Audit rules untuk Wazuh berhasil diterapkan.${nc}"
-    else
-        echo -e "${red}[X] Gagal reload auditd. Cek error-nya.${nc}"
-        return 1
-    fi
-
-    # Verifikasi
-    echo -e "${yellow}[*] Rules aktif saat ini:${nc}"
-    sudo auditctl -l | grep audit-wazuh-c
-}
-
 
 set_timeout() {
     echo -e "${yellow}[*] Memeriksa dan menambahkan konfigurasi timeout untuk RHEL 5/6...${nc}"
@@ -778,9 +741,6 @@ audit
 sleep 2
 
 ssh_config
-sleep 2
-
-audit_wazuh_agent
 sleep 2
 
 set_timeout
