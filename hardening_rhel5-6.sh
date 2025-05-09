@@ -406,10 +406,15 @@ network_parameters_host() {
     echo -e "${blue}=============================================="
     echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
-    # Load br_netfilter jika ada parameter bridge
-    if grep -q "net.bridge" <<< "$(declare -p params 2>/dev/null)"; then
-        modprobe br_netfilter 2>/dev/null
-    fi
+   # Load modul br_netfilter jika tersedia
+if lsmod | grep -q br_netfilter || modprobe br_netfilter 2>/dev/null; then
+    echo -e "${cyan}[+] Modul br_netfilter tersedia.${nc}"
+else
+    echo -e "${red}[X] Modul br_netfilter tidak tersedia. Parameter bridge-* akan dilewati.${nc}"
+    unset params["net.bridge.bridge-nf-call-iptables"]
+    unset params["net.bridge.bridge-nf-call-ip6tables"]
+fi
+
 
     # Daftar parameter yang ingin di set
     declare -A params=(
