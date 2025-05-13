@@ -530,7 +530,7 @@ EOF
     sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
     sed -i 's/^space_left =.*/space_left = 90/' /etc/audit/auditd.conf
     sed -i 's/^admin_space_left =.*/admin_space_left = 80/' /etc/audit/auditd.conf
-    sed -i 's/^admin_space_left_action =.*/admin_space_left_action = SUSPEND/' /etc/audit/auditd.conf
+    sed -i 's/^admin_space_left_action =.*/admin_space_left_action = ROTATE/' /etc/audit/auditd.conf
     echo -e "[✓] Konfigurasi /etc/audit/auditd.conf selesai."
 
     # Aktifkan service
@@ -733,7 +733,7 @@ __________         __         .__         _____                                 
  |____|    (____  /__|  \___  >___|  / \____|__  (____  /___|  (____  /\___  / \___  >__|_|  /\___  >___|  /__|  
                 \/          \/     \/          \/     \/     \/     \//_____/      \/      \/     \/     \/      
 Ubuntu Security Hardening Script
-Compatible: Red Hat Enterprice 5 & 6
+Compatible: Red Hat Enterprice 7.4 sampai 9
 
 EOF
 echo -e "${nc}"
