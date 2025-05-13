@@ -556,9 +556,12 @@ EOF
 
     # === Konfigurasi auditd.conf ===
     echo -e "${yellow}[~] Memeriksa konfigurasi /etc/audit/auditd.conf...${nc}"
-    sudo sed -i 's/^max_log_file *=.*/max_log_file = 200/' /etc/audit/auditd.conf
-    sudo sed -i 's/^max_log_file_action *=.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
-    echo -e "${green}[✓] auditd.conf dikonfigurasi.${nc}"
+    sed -i 's/^max_log_file =.*/max_log_file = 200/' /etc/audit/auditd.conf
+    sed -i 's/^max_log_file_action =.*/max_log_file_action = keep_logs/' /etc/audit/auditd.conf
+    sed -i 's/^space_left =.*/space_left = 90/' /etc/audit/auditd.conf
+    sed -i 's/^admin_space_left =.*/admin_space_left = 80/' /etc/audit/auditd.conf
+    sed -i 's/^admin_space_left_action =.*/admin_space_left_action = SUSPEND/' /etc/audit/auditd.conf
+    echo -e "[✓] Konfigurasi /etc/audit/auditd.conf selesai."
 
     # === Reload Rules ===
     echo -e "${yellow}[~] Memuat ulang aturan audit menggunakan augenrules...${nc}"
