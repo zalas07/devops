@@ -325,38 +325,40 @@ special_purpose_service() {
         fi
     }
 
-    # 1. NTP
-    log "$yellow" "[*] Mengecek dan mengonfigurasi NTP..."
-    if ! rpm -q ntp >/dev/null 2>&1; then
-        log "$blue" "[i] NTP belum terinstall. Menginstall..."
-        yum install -y ntp
+    # 1. NTP (menggunakan chrony)
+log "$yellow" "[*] Mengecek dan mengonfigurasi NTP..."
+
+if ! rpm -q chrony >/dev/null 2>&1; then
+    log "$blue" "[i] chrony belum terinstall. Menginstall..."
+    yum install -y chrony
+fi
+
+if [ -f /etc/chrony.conf ]; then
+    sed -i '/^server /d' /etc/chrony.conf
+    echo "server 172.18.104.166 iburst" >> /etc/chrony.conf
+
+    if command -v systemctl &>/dev/null; then
+        systemctl restart chronyd
+        systemctl enable chronyd
+    else
+        service chronyd restart
+        chkconfig chronyd on
     fi
 
-    if [ -f /etc/ntp.conf ]; then
-        sed -i '/^server /d' /etc/ntp.conf
-        echo "server 172.18.104.166" >> /etc/ntp.conf
-
-        if command -v systemctl &>/dev/null; then
-            systemctl restart ntpd
-            systemctl enable ntpd
+    sleep 2
+    log "$yellow" "[~] Mengecek koneksi ke NTP Server..."
+    if command -v chronyc &>/dev/null; then
+        output=$(chronyc sources -v | grep "172.18.104.166")
+        if [[ -n "$output" ]]; then
+            log "$green" "Chrony terkoneksi ke server 172.18.104.166:\n$output"
         else
-            service ntpd restart
-            chkconfig ntpd on
+            log "$red" "Chrony tidak dapat terkoneksi ke server 172.18.104.166."
         fi
-
-        sleep 2
-        log "$yellow" "[~] Mengecek koneksi ke NTP Server..."
-        if command -v ntpq &>/dev/null; then
-            output=$(ntpq -p | grep "172.18.104.166")
-            if [[ -n "$output" ]]; then
-                log "$green" "NTP terkoneksi ke server 172.18.104.166:\n$output"
-            else
-                log "$red" "NTP tidak dapat terkoneksi ke server 172.18.104.166."
-            fi
-        else
-            log "$red" "Perintah ntpq tidak tersedia."
-        fi
+    else
+        log "$red" "Perintah chronyc tidak tersedia."
     fi
+fi
+
 
     # 2. Postfix (localhost only)
     log "$yellow" "[*] Mengecek dan mengonfigurasi Postfix..."
