@@ -744,7 +744,7 @@ __________         __         .__         _____                                 
  |____|    (____  /__|  \___  >___|  / \____|__  (____  /___|  (____  /\___  / \___  >__|_|  /\___  >___|  /__|  
                 \/          \/     \/          \/     \/     \/     \//_____/      \/      \/     \/     \/      
 Ubuntu Security Hardening Script
-Compatible: Red Hat Enterprice 5 & 6
+Compatible: Red Hat Enterprice 7-9
 
 EOF
 echo -e "${nc}"
