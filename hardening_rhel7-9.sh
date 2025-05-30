@@ -483,8 +483,41 @@ EOF
     sysctl --system > /dev/null && echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
 }
 
-if grep -q "release 7" /etc/redhat-release; then
-    # RHEL 7 - jangan pakai backlog_wait_time
+audit() {
+    echo -e "${yellow}[*] Memulai konfigurasi auditd dan rsyslog...${nc}"
+
+    # --- Install paket yang diperlukan ---
+    echo -e "${yellow}[~] Memeriksa dan menginstal auditd & rsyslog...${nc}"
+    if command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y audit rsyslog
+    else
+        sudo yum install -y audit rsyslog
+    fi
+    echo -e "${green}[✓] Instalasi selesai.${nc}"
+
+    # --- Pastikan direktori rules.d ada ---
+    sudo mkdir -p /etc/audit/rules.d
+
+    # --- Fungsi bantu untuk menulis file hanya jika isinya berbeda ---
+    write_if_diff() {
+        local filepath="$1"
+        local content="$2"
+        local tmpfile
+        tmpfile=$(mktemp)
+
+        echo "$content" > "$tmpfile"
+
+        if [[ -f "$filepath" ]] && diff -q "$filepath" "$tmpfile" > /dev/null; then
+            echo -e "${blue}[i] $filepath sudah sesuai, skip.${nc}"
+        else
+            echo -e "${yellow}[~] Menulis ulang $filepath...${nc}"
+            echo "$content" | sudo tee "$filepath" > /dev/null
+        fi
+
+        rm -f "$tmpfile"
+    }
+
+    # === RULES ===
     write_if_diff "/etc/audit/rules.d/00-base.rules" "$(cat << 'EOF'
 -D
 -b 8192
@@ -494,23 +527,72 @@ if grep -q "release 7" /etc/redhat-release; then
 -a always,exit -F arch=b64 -S clock_settime -k time-change
 -a always,exit -F arch=b32 -S clock_settime -k time-change
 -w /etc/localtime -p wa -k time-change
-EOF
-)"
-else
-    # RHEL 8/9
-    write_if_diff "/etc/audit/rules.d/00-base.rules" "$(cat << 'EOF'
--D
--b 8192
 --backlog_wait_time 60000
--f 1
--a always,exit -F arch=b64 -S adjtimex,settimeofday -k time-change
--a always,exit -F arch=b32 -S adjtimex,settimeofday,stime -k time-change
--a always,exit -F arch=b64 -S clock_settime -k time-change
--a always,exit -F arch=b32 -S clock_settime -k time-change
--w /etc/localtime -p wa -k time-change
 EOF
 )"
-fi
+
+    write_if_diff "/etc/audit/rules.d/50-logins.rules" "$(cat << 'EOF'
+-w /var/log/lastlog -p wa -k logins
+-w /var/run/faillock/ -p wa -k logins
+EOF
+)"
+
+    write_if_diff "/etc/audit/rules.d/50-delete.rules" "$(cat << 'EOF'
+-a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
+-a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid>=500 -F auid!=4294967295 -k delete
+EOF
+)"
+
+    write_if_diff "/etc/audit/rules.d/50-scope.rules" "$(cat << 'EOF'
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d/ -p wa -k scope
+EOF
+)"
+
+    write_if_diff "/etc/audit/rules.d/50-session.rules" "$(cat << 'EOF'
+-w /var/run/utmp -p wa -k session
+-w /var/log/wtmp -p wa -k logins
+-w /var/log/btmp -p wa -k logins
+EOF
+)"
+
+    # === Konfigurasi auditd.conf ===
+    echo -e "${yellow}[~] Memeriksa konfigurasi /etc/audit/auditd.conf...${nc}"
+    conf_file="/etc/audit/auditd.conf"
+
+    set_conf_val() {
+        local key="$1"
+        local val="$2"
+        if grep -q "^$key" "$conf_file"; then
+            sudo sed -i "s|^$key *=.*|$key = $val|" "$conf_file"
+        else
+            echo "$key = $val" | sudo tee -a "$conf_file" > /dev/null
+        fi
+    }
+
+    set_conf_val "max_log_file" "200"
+    set_conf_val "max_log_file_action" "keep_logs"
+    set_conf_val "space_left" "90"
+    set_conf_val "space_left_action" "ROTATE"
+    set_conf_val "admin_space_left" "80"
+    set_conf_val "admin_space_left_action" "ROTATE"
+
+    echo -e "${green}[✓] auditd.conf dikonfigurasi.${nc}"
+
+    # === Reload Rules ===
+    echo -e "${yellow}[~] Memuat ulang aturan audit menggunakan augenrules...${nc}"
+    if command -v augenrules >/dev/null 2>&1; then
+        sudo augenrules --load
+    else
+        sudo service auditd restart
+    fi
+
+    # === Enable dan Restart Service ===
+    echo -e "${yellow}[~] Mengaktifkan dan memulai layanan auditd dan rsyslog...${nc}"
+    sudo systemctl enable --now auditd rsyslog
+
+    echo -e "${green}[✓] Konfigurasi auditd dan rsyslog selesai.${nc}"
+}
 
 
 ssh_config() {
