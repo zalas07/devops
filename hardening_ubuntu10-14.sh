@@ -802,7 +802,7 @@ sleep 2
 network_parameters_host
 sleep 2
 
-audit_legacy
+audit
 sleep 2
 
 ssh_config
