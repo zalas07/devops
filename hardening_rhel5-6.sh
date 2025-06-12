@@ -12,6 +12,27 @@ log() {
     echo -e "${color}${message}${nc}"
 }
 
+# === Logging Setup ===
+LOG_DIR="/var/log/hardening"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="${LOG_DIR}/hardening_${TIMESTAMP}.log"
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+chmod 600 "$LOG_FILE"
+
+log_function() {
+    local func_name="$1"
+    echo -e "\n===== [$(date)] Menjalankan fungsi: $func_name =====" | tee -a "$LOG_FILE"
+    
+    { 
+        "$func_name"
+    } 2>&1 | tee -a "$LOG_FILE"
+    
+    echo -e "===== Selesai: $func_name =====\n" | tee -a "$LOG_FILE"
+}
+
+
 baseline_check() {
     log "$blue" "==============================================="
     log "$red" "Performing baseline configuration check..."
@@ -752,43 +773,43 @@ EOF
 echo -e "${nc}"
 sleep 2
 
-baseline_check
+log_function baseline_check
 sleep 2
 
-software_update
+log_function software_update
 sleep 2
 
-install_aide
+log_function install_aide
 sleep 2
 
-setup_cron_aide
+log_function setup_cron_aide
 sleep 2
 
-apply_process_harden
+log_function apply_process_harden
 sleep 2
 
-configure_selinux
+log_function configure_selinux
 sleep 2
 
-disable_service_rhel
+log_function disable_service_rhel
 sleep 2
 
-special_purpose_service_rhel
+log_function special_purpose_service_rhel
 sleep 2
 
-network_parameters_host
+log_function network_parameters_host
 sleep 2
 
-audit
+log_function audit
 sleep 2
 
-ssh_config
+log_function ssh_config
 sleep 2
 
-set_timeout
+log_function set_timeout
 sleep 2
 
-user_account_env
+log_function user_account_env
 sleep 2
 
  # Pesan akhir
