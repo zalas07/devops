@@ -404,9 +404,17 @@ special_purpose_service_rhel() {
 
 network_parameters_host() {
     echo -e "${blue}=============================================="
-    echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
+    echo -e "${yellow}[*] Menetapkan Parameter keamanan jaringan...${nc}"
 
-    # Daftar parameter yang ingin di set
+    # Path fallback: gunakan /etc/sysctl.conf untuk RHEL 5/6 yang belum pakai sysctl.d
+    local sysctl_conf="/etc/sysctl.conf"
+    [[ -d /etc/sysctl.d ]] && sysctl_conf="/etc/sysctl.d/99-hardening.conf"
+
+    echo -e "${cyan}[i] Menggunakan file konfigurasi: $sysctl_conf${nc}"
+
+    # Backup sebelum edit
+    [[ -f "$sysctl_conf" ]] && cp "$sysctl_conf" "${sysctl_conf}.bak_$(date +%F_%T)"
+
     declare -A params=(
         ["net.ipv4.ip_forward"]="0"
         ["net.ipv4.conf.all.send_redirects"]="0"
@@ -424,36 +432,41 @@ network_parameters_host() {
         ["net.bridge.bridge-nf-call-iptables"]="0"
     )
 
-    # Cek dan load modul br_netfilter jika diperlukan
-    if lsmod | grep -q br_netfilter || modprobe br_netfilter 2>/dev/null; then
-        echo -e "${cyan}[+] Modul br_netfilter tersedia.${nc}"
-    else
-        echo -e "${red}[X] Modul br_netfilter tidak tersedia. Parameter bridge-* akan dilewati.${nc}"
-        unset params["net.bridge.bridge-nf-call-iptables"]
+    # Cek apakah br_netfilter tersedia
+    if ! modprobe br_netfilter 2>/dev/null && ! lsmod | grep -q br_netfilter; then
+        echo -e "${blue}[i] br_netfilter tidak tersedia. Melewati parameter bridge.*${nc}"
         unset params["net.bridge.bridge-nf-call-ip6tables"]
+        unset params["net.bridge.bridge-nf-call-iptables"]
     fi
 
+    # Proses tiap parameter
     for param in "${!params[@]}"; do
         value="${params[$param]}"
         sysctl_path="/proc/sys/${param//./\/}"
 
         if [[ -f "$sysctl_path" ]]; then
-            if grep -q "^$param" /etc/sysctl.conf; then
-                sed -i "s|^$param.*|$param = $value|" /etc/sysctl.conf
-                echo -e "${yellow}[~] $param diperbarui ke $value.${nc}"
+            # Gunakan sed jika param sudah ada
+            if grep -qE "^$param\s*=" "$sysctl_conf"; then
+                sed -i "s|^$param\s*=.*|$param = $value|" "$sysctl_conf"
+                echo -e "${yellow}[~] Memperbarui $param ke $value.${nc}"
             else
-                echo "$param = $value" >> /etc/sysctl.conf
-                echo -e "${cyan}[+] $param ditambahkan dengan nilai $value.${nc}"
+                echo "$param = $value" >> "$sysctl_conf"
+                echo -e "${cyan}[+] Menambahkan $param = $value.${nc}"
             fi
+        else
+            echo -e "${blue}[i] Melewati $param: tidak ditemukan di /proc/sys (tidak valid di kernel ini).${nc}"
         fi
-        # Jika param tidak valid, tidak ditampilkan (silent skip)
     done
 
-    # Terapkan perubahan tanpa output error
-    if sysctl -p > /dev/null 2>&1; then
-        echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
+    # Terapkan perubahan
+    if command -v sysctl >/dev/null; then
+        if sysctl -p "$sysctl_conf" >/dev/null 2>&1 || sysctl --system >/dev/null 2>&1; then
+            echo -e "${green}[✓] Semua parameter sysctl berhasil diterapkan.${nc}"
+        else
+            echo -e "${red}[X] Beberapa parameter gagal diterapkan. Cek manual dengan 'sysctl -p'.${nc}"
+        fi
     else
-        echo -e "${red}[X] Gagal menerapkan beberapa parameter sysctl.${nc}"
+        echo -e "${red}[X] Perintah 'sysctl' tidak ditemukan di sistem ini.${nc}"
     fi
 }
 
