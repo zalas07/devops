@@ -7,6 +7,27 @@ red='\033[0;31m'
 blue='\033[0;34m'
 nc='\033[0m'
 
+# === Logging Setup ===
+LOG_DIR="/var/log/hardening"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="${LOG_DIR}/hardening_${TIMESTAMP}.log"
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+chmod 600 "$LOG_FILE"
+
+log_function() {
+    local func_name="$1"
+    echo -e "\n===== [$(date)] Menjalankan fungsi: $func_name =====" | tee -a "$LOG_FILE"
+    
+    { 
+        "$func_name"
+    } 2>&1 | tee -a "$LOG_FILE"
+    
+    echo -e "===== Selesai: $func_name =====\n" | tee -a "$LOG_FILE"
+}
+
+
 
 log() {
 
@@ -786,46 +807,46 @@ EOF
 echo -e "${nc}"
 sleep 2
 
-baseline_check
+log_function baseline_check
 sleep 2
 
-install_aide
+log_function install_aide
 sleep 2
 
-setup_cron_aide
+log_function setup_cron_aide
 sleep 2
 
-apply_process_harden
+log_function apply_process_harden
 sleep 2
 
-install_apparmor
+log_function install_apparmor
 sleep 2
 
-disable_service
+log_function disable_service
 sleep 2
 
-special_purpose_service
+log_function special_purpose_service
 sleep 2
 
-network_parameters
+log_function network_parameters
 sleep 2
 
-network_parameters_host
+log_function network_parameters_host
 sleep 2
 
-audit
+log_function audit
 sleep 2
 
-ssh_config
+log_function ssh_config
 sleep 2
 
-audit_wazuh_agent
+log_function audit_wazuh_agent
 sleep 2
 
-set_timeout
+log_function set_timeout
 sleep 2
 
-user_account_env
+log_function user_account_env
 sleep 2
 
  # Pesan akhir
