@@ -15,8 +15,28 @@ echo -e "${color}${message}${nc}"
 
 }
 
+# === Logging Setup ===
+LOG_DIR="/var/log/hardening"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="${LOG_DIR}/hardening_${TIMESTAMP}.log"
 
-baseline_check() {
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+chmod 600 "$LOG_FILE"
+
+log_function() {
+    local func_name="$1"
+    echo -e "\n===== [$(date)] Menjalankan fungsi: $func_name =====" | tee -a "$LOG_FILE"
+    
+    {
+        "$func_name"
+    } 2>&1 | tee -a "$LOG_FILE"
+    
+    echo -e "===== Selesai: $func_name =====\n" | tee -a "$LOG_FILE"
+}
+
+
+log_function baseline_check() {
     echo -e "\033[1;34m===============================================\033[0m"
     echo -e "\033[1;31mPerforming baseline configuration check...\033[0m"
     sleep 1
@@ -69,7 +89,7 @@ baseline_check() {
     echo ""
     sleep 2
 }
-install_aide() {
+log_function install_aide() {
     echo -e "\033[1;34m=============================================\033[0m"
     echo -e "\033[1;33mMengecek apakah paket AIDE sudah terinstall atau belum......\033[0m"
 
@@ -108,7 +128,7 @@ install_aide() {
 }
 
 
-setup_cron_aide() {
+log_function setup_cron_aide() {
 echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "Mengecek dan Menambahkan Cron Job AIDE..."
 
@@ -147,7 +167,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     sleep 1
 }
 
-apply_process_harden() {
+log_function apply_process_harden() {
     local sysctl_conf="/etc/sysctl.conf"
 
     echo -e "\033[1;34m===============================================\033[0m"
@@ -200,7 +220,7 @@ are subject to having all of their activities on this system monitored and recor
     sleep 2
 }
 
-install_apparmor() {
+log_function install_apparmor() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Memperbarui repository..."
     sudo apt-get update -y > /dev/null 2>&1
@@ -246,7 +266,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     echo "[+] Instalasi dan konfigurasi AppArmor selesai untuk Ubuntu legacy!"
 }
 
-disable_service() {
+log_function disable_service() {
    echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menonaktifkan Service legacy yang tidak dibutuhkan..."
 
@@ -300,7 +320,7 @@ disable_service() {
     sleep 2
 }
 
-special_purpose_service() {
+log_function special_purpose_service() {
 echo -e "\033[1;34m===============================================\033[0m"
 log "$yellow" "[*] Menjalankan Special Purpose Services...${nc}"
 
@@ -388,7 +408,7 @@ done
 echo -e "${green} Module Purpose Special service selesai.${nc}"
 }
 
-network_parameters() {
+log_function network_parameters() {
    echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
@@ -425,7 +445,7 @@ network_parameters() {
     fi
 }
 
-network_parameters_host() {
+log_function network_parameters_host() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Starting network parameter hardening..."
 
@@ -470,7 +490,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     fi
 }
 
-audit() {
+log_function audit() {
     echo "[*] Memulai konfigurasi auditd dan rsyslog..."
 
     # --- Install paket ---
@@ -566,7 +586,7 @@ EOF
 
 
 
-ssh_config() {
+log_function ssh_config() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "🛠️  Starting SSH configuration hardening..."
 
@@ -618,7 +638,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     fi
 }
 
-audit_wazuh_agent() {
+log_function audit_wazuh_agent() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Menambahkan audit rules untuk Wazuh Agent...${nc}"
 
@@ -659,7 +679,7 @@ EOF
     sudo auditctl -l | grep audit-wazuh-c
 }
 
-set_timeout() {
+log_function set_timeout() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Memeriksa dan menambahkan konfigurasi timeout...${nc}"
 
