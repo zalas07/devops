@@ -36,7 +36,7 @@ log_function() {
 }
 
 
-log_function baseline_check() {
+baseline_check() {
     echo -e "\033[1;34m===============================================\033[0m"
     echo -e "\033[1;31mPerforming baseline configuration check...\033[0m"
     sleep 1
@@ -89,7 +89,7 @@ log_function baseline_check() {
     echo ""
     sleep 2
 }
-log_function install_aide() {
+ install_aide() {
     echo -e "\033[1;34m=============================================\033[0m"
     echo -e "\033[1;33mMengecek apakah paket AIDE sudah terinstall atau belum......\033[0m"
 
@@ -128,7 +128,7 @@ log_function install_aide() {
 }
 
 
-log_function setup_cron_aide() {
+ setup_cron_aide() {
 echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "Mengecek dan Menambahkan Cron Job AIDE..."
 
@@ -167,7 +167,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     sleep 1
 }
 
-log_function apply_process_harden() {
+ apply_process_harden() {
     local sysctl_conf="/etc/sysctl.conf"
 
     echo -e "\033[1;34m===============================================\033[0m"
@@ -220,7 +220,7 @@ are subject to having all of their activities on this system monitored and recor
     sleep 2
 }
 
-log_function install_apparmor() {
+ install_apparmor() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Memperbarui repository..."
     sudo apt-get update -y > /dev/null 2>&1
@@ -266,7 +266,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     echo "[+] Instalasi dan konfigurasi AppArmor selesai untuk Ubuntu legacy!"
 }
 
-log_function disable_service() {
+ disable_service() {
    echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menonaktifkan Service legacy yang tidak dibutuhkan..."
 
@@ -320,7 +320,7 @@ log_function disable_service() {
     sleep 2
 }
 
-log_function special_purpose_service() {
+ special_purpose_service() {
 echo -e "\033[1;34m===============================================\033[0m"
 log "$yellow" "[*] Menjalankan Special Purpose Services...${nc}"
 
@@ -408,7 +408,7 @@ done
 echo -e "${green} Module Purpose Special service selesai.${nc}"
 }
 
-log_function network_parameters() {
+ network_parameters() {
    echo -e "\033[1;34m===============================================\033[0m"
     log "$yellow" "[*] Menetapkan Parameter keamanan jaringan di /etc/sysctl.conf...${nc}"
 
@@ -445,7 +445,7 @@ log_function network_parameters() {
     fi
 }
 
-log_function network_parameters_host() {
+ network_parameters_host() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "[*] Starting network parameter hardening..."
 
@@ -490,7 +490,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     fi
 }
 
-log_function audit() {
+ audit() {
     echo "[*] Memulai konfigurasi auditd dan rsyslog..."
 
     # --- Install paket ---
@@ -586,7 +586,7 @@ EOF
 
 
 
-log_function ssh_config() {
+ ssh_config() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo "🛠️  Starting SSH configuration hardening..."
 
@@ -638,7 +638,7 @@ echo -e "\033[1;34m===============================================\033[0m"
     fi
 }
 
-log_function audit_wazuh_agent() {
+ audit_wazuh_agent() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Menambahkan audit rules untuk Wazuh Agent...${nc}"
 
@@ -679,7 +679,7 @@ EOF
     sudo auditctl -l | grep audit-wazuh-c
 }
 
-log_function set_timeout() {
+ set_timeout() {
 echo -e "\033[1;34m===============================================\033[0m"
     echo -e "${yellow}[*] Memeriksa dan menambahkan konfigurasi timeout...${nc}"
 
@@ -795,46 +795,46 @@ EOF
 echo -e "${nc}"
 sleep 2
 
-baseline_check
+log_function baseline_check
 sleep 2
 
-install_aide
+log_function install_aide
 sleep 2
 
-setup_cron_aide
+log_function setup_cron_aide
 sleep 2
 
-apply_process_harden
+log_function apply_process_harden
 sleep 2
 
-install_apparmor
+log_function install_apparmor
 sleep 2
 
-disable_service
+log_function disable_service
 sleep 2
 
-special_purpose_service
+log_function special_purpose_service
 sleep 2
 
-network_parameters
+log_function network_parameters
 sleep 2
 
-network_parameters_host
+log_function network_parameters_host
 sleep 2
 
-audit
+log_function audit
 sleep 2
 
-ssh_config
+log_function ssh_config
 sleep 2
 
-audit_wazuh_agent
+log_function audit_wazuh_agent
 sleep 2
 
-set_timeout
+log_function set_timeout
 sleep 2
 
-user_account_env
+log_function user_account_env
 sleep 4
 
  # Pesan akhir
