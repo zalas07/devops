@@ -12,6 +12,27 @@ log() {
     echo -e "${color}${message}${nc}"
 }
 
+# === Logging Setup ===
+LOG_DIR="/var/log/hardening"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOG_FILE="${LOG_DIR}/hardening_${TIMESTAMP}.log"
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+chmod 600 "$LOG_FILE"
+
+log_function() {
+    local func_name="$1"
+    echo -e "\n===== [$(date)] Menjalankan fungsi: $func_name =====" | tee -a "$LOG_FILE"
+    
+    { 
+        "$func_name"
+    } 2>&1 | tee -a "$LOG_FILE"
+    
+    echo -e "===== Selesai: $func_name =====\n" | tee -a "$LOG_FILE"
+}
+
+
 baseline_check() {
     log "$blue" "==============================================="
     log "$red" "Performing baseline configuration check..."
