@@ -1,0 +1,17 @@
+00a253646e1f759c28988e19245fd470  adcheck-aix7.2-ppc
+687c7b0991bedd38c36863b764bff061  adcheck-alpine3-x86_64
+ac21d9fb231c2c0a9fe4bb640f26b36d  adcheck-cos-x86_64
+78ed6b2227a87b57827db38f5f0b0602  adcheck-deb11-arm64
+96fbe9d2341fca0faeb32026e26dfd83  adcheck-deb11-ppc64el
+97007d23369e3946e440ba5a6623f61d  adcheck-deb11-x86_64
+8e2883c0a2aea22ee08cf9d4cd5eb578  adcheck-hp11.31-ia64
+8a4bb8aa07ea2d0d67c25aac366b9e6c  adcheck-rhel8-aarch64
+5cb5970a5099341bfc173980f2ea8de6  adcheck-rhel8-ppc64le
+57b4ba31318051fc3b5d078333cd214a  adcheck-rhel8-x86_64
+f57d4d427db56d63e1b40dbc1a55e953  adcheck-sol10-sparc
+aac09f53af216fecc9760e075a5ba2c0  adcheck-sol10-x86
+aac09f53af216fecc9760e075a5ba2c0  adcheck-sol11-i386
+f57d4d427db56d63e1b40dbc1a55e953  adcheck-sol11-sparc
+ee337b9d337dd922544fd25f54888038  adcheck-suse15-aarch64
+6310a58aeaaf8a10544036da7238db53  adcheck-suse15-ppc64le
+2775261ca554421edf25162c500ec324  adcheck-suse15-x86_64
